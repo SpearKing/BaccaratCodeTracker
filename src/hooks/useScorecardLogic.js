@@ -158,7 +158,8 @@ export const useScorecardLogic = () => {
         }
 
         return newScorecard;
-    }, [X_MARK_THRESHOLD, findNextAvailableCol]);
+    // MODIFIED: Removed X_MARK_THRESHOLD from dependency array
+    }, [findNextAvailableCol]);
 
 
     const recalculateFromRow = useCallback((startingRowIdx, initialScorecardState) => {
@@ -220,7 +221,8 @@ export const useScorecardLogic = () => {
         setLastWinType(finalLastWinType);
         setLastWinRow(finalLastWinRow);
 
-    }, [calculateSingleRow, NUM_INITIAL_ROWS]);
+    // MODIFIED: Removed NUM_INITIAL_ROWS from dependency array
+    }, [calculateSingleRow]);
 
     const handleCellClick = useCallback((rowIdx, colIdx) => {
         if (rowIdx === 0) return;
@@ -259,19 +261,15 @@ export const useScorecardLogic = () => {
         setScorecard(initialScorecard);
         setLastWinType(null);
         setLastWinRow(-1);
-        // Do NOT reset currentScorecardName or saveGameInput here
-        // These are handled by useGameManagement or App.js if it's the default game
-
-        // This reset should also clear the default game from local storage if it's the one being reset
+        
         const savedGames = JSON.parse(localStorage.getItem(ALL_SAVED_SCORECARDS_KEY) || '{}');
         if (savedGames[DEFAULT_GAME_NAME]) {
             delete savedGames[DEFAULT_GAME_NAME];
             localStorage.setItem(ALL_SAVED_SCORECARDS_KEY, JSON.stringify(savedGames));
         }
 
-    }, []); // No dependencies on scorecard/lastWinType/lastWinRow for a hard reset
+    }, []);
 
-    // Max renderable columns logic
     const maxRenderableColumns = useMemo(() => {
         let maxContentColIndex = 3 + NUM_INITIAL_COLUMNS - 1;
         scorecard.forEach(row => {
@@ -282,14 +280,15 @@ export const useScorecardLogic = () => {
             }
         });
         return maxContentColIndex + 1;
-    }, [scorecard, NUM_INITIAL_COLUMNS]);
+    // MODIFIED: Removed NUM_INITIAL_COLUMNS from dependency array
+    }, [scorecard]);
 
     return {
         scorecard,
         setScorecard,
         lastWinType,
         setLastWinType,
-        lastWinRow, // Ensure this is returned
+        lastWinRow,
         setLastWinRow,
         handleCellClick,
         resetScorecard,
