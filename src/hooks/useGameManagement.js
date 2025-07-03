@@ -5,7 +5,8 @@ import {
     DEFAULT_GAME_NAME,
 } from '../utils/constants';
 
-const API_URL = 'http://localhost:3001/api'; // The URL of your backend
+// MODIFIED: Added the required /api path to the URL
+const API_URL = 'https://baccarat-api-3hoh.onrender.com/api';
 
 const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -28,45 +29,58 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
     const [loadGameSelect, setLoadGameSelect] = useState('');
     const [saveDate, setSaveDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // MODIFIED: Fetch all games from the database on initial load
     const loadAllGamesFromDB = useCallback(async () => {
         try {
             const response = await fetch(`${API_URL}/games`);
+            if (!response.ok) throw new Error('Failed to fetch games');
             const games = await response.json();
             setAllSavedScorecards(games);
+
+            const lastActiveName = localStorage.getItem(LAST_ACTIVE_SCORECARD_NAME_KEY) || DEFAULT_GAME_NAME;
+            
+            if (games[lastActiveName]) {
+                const { scorecard, lastWinType, lastWinRow } = games[lastActiveName];
+                setScorecard(scorecard);
+                setLastWinType(lastWinType);
+                setLastWinRow(lastWinRow);
+                setCurrentScorecardName(lastActiveName);
+            } else {
+                if (games[DEFAULT_GAME_NAME]) {
+                    const { scorecard, lastWinType, lastWinRow } = games[DEFAULT_GAME_NAME];
+                    setScorecard(scorecard);
+                    setLastWinType(lastWinType);
+                    setLastWinRow(lastWinRow);
+                }
+                setCurrentScorecardName(DEFAULT_GAME_NAME);
+            }
         } catch (error) {
             console.error('Failed to fetch games:', error);
         }
-    }, []);
+    }, [setScorecard, setLastWinType, setLastWinRow]);
 
     useEffect(() => {
         loadAllGamesFromDB();
     }, [loadAllGamesFromDB]);
 
-    // This effect now saves the "Last Session" game to the database automatically
     useEffect(() => {
         const saveLastSession = async () => {
-            const dataToSave = {
-                scorecard: scorecard,
-                lastWinType: lastWinType,
-                lastWinRow: lastWinRow,
-            };
+            const dataToSave = { scorecard, lastWinType, lastWinRow };
             try {
                 await fetch(`${API_URL}/games`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: currentScorecardName, data: dataToSave }),
+                    body: JSON.stringify({ name: DEFAULT_GAME_NAME, data: dataToSave }),
                 });
             } catch (error) {
                 console.error('Failed to save session:', error);
             }
         };
 
-        if (scorecard) { // Only save if scorecard data is present
-            saveLastSession();
+        if (scorecard && scorecard.length > 0) {
+            const timer = setTimeout(saveLastSession, 1000);
+            return () => clearTimeout(timer);
         }
-    }, [scorecard, lastWinType, lastWinRow, currentScorecardName]);
-
+    }, [scorecard, lastWinType, lastWinRow]);
 
     const handleSaveCurrentGame = useCallback(async () => {
         const nameToSave = saveGameInput.trim();
@@ -84,30 +98,28 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
             finalName = `${processedBaseName} (${counter}) - ${formattedDate}`;
         }
         
-        const dataToSave = {
-            scorecard,
-            lastWinType,
-            lastWinRow,
-        };
+        const dataToSave = { scorecard, lastWinType, lastWinRow };
 
         try {
-            await fetch(`${API_URL}/games`, {
+            const response = await fetch(`${API_URL}/games`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: finalName, data: dataToSave }),
             });
-            
-            // Refresh the list of games from the database
-            await loadAllGamesFromDB();
+            if (!response.ok) throw new Error('Failed to save game on server');
+
+            setAllSavedScorecards(prev => ({ ...prev, [finalName]: dataToSave }));
             setCurrentScorecardName(finalName);
+            setLoadGameSelect(finalName);
+            localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, finalName);
+            
             setSaveGameInput('');
             alert(`Scorecard "${finalName}" saved!`);
         } catch (error) {
             console.error('Failed to save game:', error);
             alert('Error saving game.');
         }
-    }, [saveGameInput, saveDate, scorecard, lastWinType, lastWinRow, allSavedScorecards, loadAllGamesFromDB]);
-
+    }, [saveGameInput, saveDate, scorecard, lastWinType, lastWinRow, allSavedScorecards]);
 
     const handleLoadSelectedGame = useCallback(() => {
         if (!loadGameSelect || !allSavedScorecards[loadGameSelect]) {
@@ -122,7 +134,6 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
         alert(`Scorecard "${loadGameSelect}" loaded!`);
     }, [loadGameSelect, allSavedScorecards, setScorecard, setLastWinType, setLastWinRow]);
 
-
     const handleDeleteSelectedGame = useCallback(async () => {
         if (!loadGameSelect || loadGameSelect === DEFAULT_GAME_NAME) {
             return alert("Please select a valid game to delete.");
@@ -132,23 +143,28 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
         }
 
         try {
-            await fetch(`${API_URL}/games/${loadGameSelect}`, { method: 'DELETE' });
-            // Refresh the list from the DB
-            await loadAllGamesFromDB();
+            const response = await fetch(`${API_URL}/games/${encodeURIComponent(loadGameSelect)}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete game on server');
+
+            setAllSavedScorecards(prev => {
+                const newSaved = { ...prev };
+                delete newSaved[loadGameSelect];
+                return newSaved;
+            });
+            
             setLoadGameSelect('');
-            // Optional: load the default game after deleting
+            alert(`Scorecard "${loadGameSelect}" deleted.`);
             if (allSavedScorecards[DEFAULT_GAME_NAME]) {
                 handleLoadSelectedGame(DEFAULT_GAME_NAME);
             }
-            alert(`Scorecard "${loadGameSelect}" deleted.`);
         } catch (error) {
             console.error('Failed to delete game:', error);
             alert('Error deleting game.');
         }
-    }, [loadGameSelect, allSavedScorecards, handleLoadSelectedGame, loadAllGamesFromDB]);
+    }, [loadGameSelect, allSavedScorecards, handleLoadSelectedGame]);
 
     const resetGameManagementState = useCallback(() => {
-        resetScorecardLogic(false);
+        resetScorecardLogic();
         setCurrentScorecardName(DEFAULT_GAME_NAME);
         setSaveGameInput('');
         setLoadGameSelect('');
