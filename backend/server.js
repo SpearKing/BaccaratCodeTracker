@@ -5,7 +5,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 
 const app = express();
-const port = 3001; 
+const port = 3001;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -14,13 +14,11 @@ const pool = new Pool({
   }
 });
 
-// --- NEW: CORS Configuration for Production ---
-// Add the URL where you deployed your frontend (e.g., on Netlify, Vercel)
+// CORS Configuration
 const whitelist = [
-  'http://localhost:3000', // For local development
-  'https://baccaratcodetracker.netlify.app' // <<-- IMPORTANT: REPLACE THIS WITH YOUR ACTUAL DEPLOYED FRONTEND URL
+  'http://localhost:3000',
+  'https://baccaratcodetracker.netlify.app' // Your frontend URL
 ];
-
 const corsOptions = {
   origin: function (origin, callback) {
     if (whitelist.indexOf(origin) !== -1 || !origin) {
@@ -31,10 +29,13 @@ const corsOptions = {
   }
 };
 
-app.use(cors(corsOptions)); // Use the new configuration
-app.use(express.json());
+app.use(cors(corsOptions));
 
-// --- API Endpoints (No changes needed below) ---
+// MODIFIED: Increase the request body size limit
+app.use(express.json({ limit: '50mb' }));
+
+
+// --- API Endpoints ---
 
 // GET endpoint to load all saved games
 app.get('/api/games', async (req, res) => {
