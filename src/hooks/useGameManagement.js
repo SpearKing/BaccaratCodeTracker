@@ -56,7 +56,7 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
             await fetch(`${API_URL}/games`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: currentScorecardName, data: dataToSave, stats: serializableStats }), });
             alert(`Game "${currentScorecardName}" saved successfully!`);
         } catch (error) { alert('Error: Could not save the current game.'); }
-    }, [currentScorecardName, scorecard, lastWinType, lastWinRow, getSerializableStats, stats]); // MODIFIED: Added stats
+    }, [currentScorecardName, scorecard, lastWinType, lastWinRow, getSerializableStats]);
 
     const handleSaveAs = useCallback(async () => {
         const nameToSave = saveGameInput.trim();
@@ -72,14 +72,15 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
         const serializableStats = getSerializableStats();
         try {
             await fetch(`${API_URL}/games`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: finalName, data: dataToSave, stats: serializableStats }), });
-            setAllSavedScorecards(prev => ({ ...prev, [finalName]: { ...dataToSave, stats } }));
+            setAllSavedScorecards(prev => ({ ...prev, [finalName]: { ...dataToSave, stats: serializableStats } }));
             setCurrentScorecardName(finalName);
             setLoadGameSelect(finalName);
             localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, finalName);
             setSaveGameInput('');
             alert(`Scorecard "${finalName}" saved!`);
         } catch (error) { alert('Error saving new game.'); }
-    }, [saveGameInput, saveDate, scorecard, lastWinType, lastWinRow, allSavedScorecards, getSerializableStats, stats]); // MODIFIED: Added stats
+    // MODIFIED: Removed `stats` as it's handled by getSerializableStats
+    }, [saveGameInput, saveDate, scorecard, lastWinType, lastWinRow, allSavedScorecards, getSerializableStats]); 
 
     const handleLoadSelectedGame = useCallback(() => {
         if (!loadGameSelect || !allSavedScorecards[loadGameSelect]) {

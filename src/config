@@ -1,0 +1,16 @@
+// src/config.js
+
+const config = {
+    /**
+     * --- STATISTICS SETTINGS ---
+     * Set to true to enable capturing detailed win/loss data for each individual pattern.
+     * When off, the stats panel will still show overall Player/Banker and Prediction stats,
+     * but the pattern-specific section will be hidden.
+     *
+     * Default: false
+     */
+    capturePatternStats: false,
+
+};
+
+export default config;
