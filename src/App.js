@@ -11,7 +11,6 @@ import ControlPanel from './components/ControlPanel';
 import StealthModeView from './components/StealthModeView';
 import StatsModal from './components/StatsModal';
 import { ANALYTICS_PATTERNS } from './utils/constants';
-import { calculateStats } from './utils/statsCalculator'; // Correctly import the function
 
 function App() {
     const [showControls, setShowControls] = useState(false);
@@ -39,18 +38,27 @@ function App() {
 
     const { predictedWinType, confidenceLevel } = usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
 
-    // MODIFIED: Use an effect to calculate stats in real-time
+    // MODIFIED: Added `stats` to the dependency array
     useEffect(() => {
-        const newStats = calculateStats(scorecard, highlightedCells, lastWinRow, stats);
-        setStats(newStats);
-    }, [scorecard, highlightedCells, lastWinRow]); // Recalculate whenever these change
+        let pWins = 0;
+        let bWins = 0;
+        if (scorecard && scorecard.length > 0) {
+            for (let i = 1; i < scorecard.length; i++) {
+                if (scorecard[i][0].value === 'O') pWins++;
+                if (scorecard[i][1].value === 'O') bWins++;
+            }
+        }
+        // Check if stats have actually changed to prevent infinite loops
+        if (stats.pWins !== pWins || stats.bWins !== bWins) {
+            setStats(prevStats => ({...prevStats, pWins, bWins}));
+        }
+    }, [scorecard, stats]); // Added stats dependency
 
     const handleEnterStealthMode = () => { setIsDarkMode(true); setIsStealthMode(true); };
     
     const handleFullReset = useCallback(() => {
         if (window.confirm("Are you sure you want to start a new game?")) {
             gameManagement.resetGameManagementState();
-            // Reset stats to their initial state
             const initialPatternStats = new Map();
             ANALYTICS_PATTERNS.forEach(p => initialPatternStats.set(p.name, { count: 0, wins: 0, losses: 0 }));
             setStats({ pWins: 0, bWins: 0, predictions: { correct: 0, wrong: 0 }, patternStats: initialPatternStats });

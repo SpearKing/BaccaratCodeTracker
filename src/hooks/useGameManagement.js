@@ -7,7 +7,6 @@ const API_URL = 'https://baccarat-api-3hoh.onrender.com/api';
 const formatDate = (dateString) => { if (!dateString) return ''; const date = new Date(dateString); const offset = date.getTimezoneOffset(); const adjustedDate = new Date(date.getTime() + (offset * 60 * 1000)); const month = (adjustedDate.getMonth() + 1).toString().padStart(2, '0'); const day = adjustedDate.getDate().toString().padStart(2, '0'); const year = adjustedDate.getFullYear().toString().slice(-2); return `${month}/${day}/${year}`; };
 const toTitleCase = (str) => { return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()); };
 
-// MODIFIED: Accept `setStats` as the last argument
 export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScorecard, setLastWinType, setLastWinRow, resetScorecardLogic, stats, setStats) => {
     const [allSavedScorecards, setAllSavedScorecards] = useState({});
     const [currentScorecardName, setCurrentScorecardName] = useState(DEFAULT_GAME_NAME);
@@ -92,9 +91,7 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
         setLastWinRow(loadedRow);
         setCurrentScorecardName(loadGameSelect);
         localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, loadGameSelect);
-        
-        // Use setStats to update the stats object when a game is loaded
-        if (loadedStats) {
+        if(loadedStats) {
             setStats({...loadedStats, patternStats: new Map(Object.entries(loadedStats.patternStats || {}))});
         }
         alert(`Scorecard "${loadGameSelect}" loaded!`);
@@ -121,7 +118,7 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
             console.error('Failed to delete game:', error);
             alert('Error deleting game.');
         }
-    }, [loadGameSelect, allSavedScorecards]);
+    }, [loadGameSelect]); // MODIFIED: Removed unnecessary dependency
 
     const resetGameManagementState = useCallback(() => {
         resetScorecardLogic();

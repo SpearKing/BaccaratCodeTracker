@@ -1,6 +1,7 @@
 // src/components/StatsModal.js
 import React from 'react';
-import { ANALYTICS_PATTERNS } from '../utils/constants';
+// MODIFIED: Removed unused import
+// import { ANALYTICS_PATTERNS } from '../utils/constants'; 
 import config from '../config';
 
 const StatsModal = ({ stats, onClose }) => {
@@ -17,7 +18,6 @@ const StatsModal = ({ stats, onClose }) => {
         );
     }
     
-    // Helper to calculate win percentage
     const getWinPct = (wins, losses) => {
         const total = wins + losses;
         if (total === 0) return '0.00%';
