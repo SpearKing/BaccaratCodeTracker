@@ -56,7 +56,7 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
             await fetch(`${API_URL}/games`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: currentScorecardName, data: dataToSave, stats: serializableStats }), });
             alert(`Game "${currentScorecardName}" saved successfully!`);
         } catch (error) { alert('Error: Could not save the current game.'); }
-    }, [currentScorecardName, scorecard, lastWinType, lastWinRow, getSerializableStats]);
+    }, [currentScorecardName, scorecard, lastWinType, lastWinRow, getSerializableStats, stats]); // MODIFIED: Added stats
 
     const handleSaveAs = useCallback(async () => {
         const nameToSave = saveGameInput.trim();
@@ -79,7 +79,7 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
             setSaveGameInput('');
             alert(`Scorecard "${finalName}" saved!`);
         } catch (error) { alert('Error saving new game.'); }
-    }, [saveGameInput, saveDate, scorecard, lastWinType, lastWinRow, allSavedScorecards, getSerializableStats]);
+    }, [saveGameInput, saveDate, scorecard, lastWinType, lastWinRow, allSavedScorecards, getSerializableStats, stats]); // MODIFIED: Added stats
 
     const handleLoadSelectedGame = useCallback(() => {
         if (!loadGameSelect || !allSavedScorecards[loadGameSelect]) {
@@ -118,7 +118,7 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
             console.error('Failed to delete game:', error);
             alert('Error deleting game.');
         }
-    }, [loadGameSelect]); // MODIFIED: Removed unnecessary dependency
+    }, [loadGameSelect]);
 
     const resetGameManagementState = useCallback(() => {
         resetScorecardLogic();
