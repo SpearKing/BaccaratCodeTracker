@@ -14,10 +14,9 @@ const pool = new Pool({
   }
 });
 
-// CORS Configuration
 const whitelist = [
   'http://localhost:3000',
-  'https://baccaratcodetracker.netlify.app' // Your frontend URL
+  'https://baccaratcodetracker.netlify.app'
 ];
 const corsOptions = {
   origin: function (origin, callback) {
@@ -30,19 +29,14 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// MODIFIED: Increase the request body size limit
 app.use(express.json({ limit: '50mb' }));
 
-
-// --- API Endpoints ---
-
-// GET endpoint to load all saved games
+// GET endpoint - Now also fetches stats
 app.get('/api/games', async (req, res) => {
   try {
-    const result = await pool.query('SELECT name, data FROM scorecards');
+    const result = await pool.query('SELECT name, data, stats FROM scorecards');
     const games = result.rows.reduce((acc, row) => {
-      acc[row.name] = row.data;
+      acc[row.name] = { ...row.data, stats: row.stats }; // Combine data and stats
       return acc;
     }, {});
     res.json(games);
@@ -52,22 +46,22 @@ app.get('/api/games', async (req, res) => {
   }
 });
 
-// POST endpoint to save or update a game
+// POST endpoint - Now also saves stats
 app.post('/api/games', async (req, res) => {
-  const { name, data } = req.body;
+  const { name, data, stats } = req.body;
   if (!name || !data) {
     return res.status(400).send('Missing name or data');
   }
 
   const query = `
-    INSERT INTO scorecards (name, data)
-    VALUES ($1, $2)
+    INSERT INTO scorecards (name, data, stats)
+    VALUES ($1, $2, $3)
     ON CONFLICT (name)
-    DO UPDATE SET data = EXCLUDED.data;
+    DO UPDATE SET data = EXCLUDED.data, stats = EXCLUDED.stats;
   `;
 
   try {
-    await pool.query(query, [name, data]);
+    await pool.query(query, [name, data, stats]);
     res.status(200).send('Game saved successfully');
   } catch (err) {
     console.error(err);
@@ -75,7 +69,7 @@ app.post('/api/games', async (req, res) => {
   }
 });
 
-// DELETE endpoint to delete a game
+// DELETE endpoint - No changes needed here
 app.delete('/api/games/:name', async (req, res) => {
   const { name } = req.params;
   const decodedName = decodeURIComponent(name);
@@ -87,7 +81,6 @@ app.delete('/api/games/:name', async (req, res) => {
     res.status(500).send('Server error');
   }
 });
-
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
