@@ -1,6 +1,6 @@
 // src/utils/constants.js
 
-export const NUM_INITIAL_ROWS = 82;
+export const NUM_INITIAL_ROWS = 500;
 export const NUM_INITIAL_COLUMNS = 10; // For columns 1-10
 export const X_MARK_THRESHOLD = 4; // 'X' appears when absolute value of the cell above reaches this or higher
 

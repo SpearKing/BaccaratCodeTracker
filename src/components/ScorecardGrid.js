@@ -2,7 +2,14 @@
 import React from 'react';
 import GridCell from './GridCell';
 
-const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highlightedCells, showAnalytics }) => {
+const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highlightedCells, showAnalytics, handleDeleteRow }) => {
+    const handleRightClick = (e, rowIdx) => {
+        e.preventDefault();
+        if (window.confirm(`Are you sure you want to delete row ${rowIdx}?`)) {
+            handleDeleteRow(rowIdx);
+        }
+    };
+
     return (
         <div className="scorecard-grid">
             {/* Header Row */}
@@ -22,7 +29,12 @@ const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highl
             {scorecard.map((row, rowIdx) => (
                 rowIdx === 0 ? null : (
                     <div key={rowIdx} className={`grid-row`}>
-                        <div className="grid-cell row-number sticky-col">{rowIdx}</div>
+                        <div 
+                            className="grid-cell row-number sticky-col"
+                            onContextMenu={(e) => handleRightClick(e, rowIdx)}
+                        >
+                            {rowIdx}
+                        </div>
                         
                         {row.slice(0, maxRenderableColumns).map((cell, colIdx) => {
                             const isP = colIdx === 0;
