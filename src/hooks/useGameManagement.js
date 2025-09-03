@@ -79,7 +79,6 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
             setSaveGameInput('');
             alert(`Scorecard "${finalName}" saved!`);
         } catch (error) { alert('Error saving new game.'); }
-    // MODIFIED: Removed `stats` as it's handled by getSerializableStats
     }, [saveGameInput, saveDate, scorecard, lastWinType, lastWinRow, allSavedScorecards, getSerializableStats]); 
 
     const handleLoadSelectedGame = useCallback(() => {
@@ -92,9 +91,16 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
         setLastWinRow(loadedRow);
         setCurrentScorecardName(loadGameSelect);
         localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, loadGameSelect);
-        if(loadedStats) {
-            setStats({...loadedStats, patternStats: new Map(Object.entries(loadedStats.patternStats || {}))});
+        
+        // ** THE FIX IS HERE **
+        // When loading stats, ensure patternStats is converted back to a Map.
+        if(loadedStats && loadedStats.patternStats) {
+            const patternStatsAsMap = new Map(Object.entries(loadedStats.patternStats));
+            setStats({...loadedStats, patternStats: patternStatsAsMap});
+        } else if (loadedStats) {
+            setStats(loadedStats);
         }
+
         alert(`Scorecard "${loadGameSelect}" loaded!`);
     }, [loadGameSelect, allSavedScorecards, setScorecard, setLastWinType, setLastWinRow, setStats]);
 
