@@ -3,19 +3,15 @@ import React, { useState, useEffect } from 'react';
 import StealthIcon from './StealthIcon';
 import { predictNextHand } from '../engine/predict';
 
-// The C-Level is a count of highlighted cells, nothing more. It used to be
-// dressed up as "Low" / "Med" / "HIGH", which was not only unmeasured but
-// backwards: over 2,500 real hands C=5 returned 46.80% and C=3 returned
-// 53.98%. The label shouted loudest where the engine was weakest.
+// Reads as "B, C: 42" -- back Banker, and hands at this C-Level have come in
+// 42% of the time in this player's own log.
 //
-// So the number is shown as the count it is, alongside what that level has
-// actually returned in this player's own log -- and nothing at all until there
-// are enough hands to say.
-const formatConfidence = (level, calibration) => {
-    const measured = calibration?.get(level);
-    if (!measured) return `${level}`;
-    return `${level} · ${(measured.rate * 100).toFixed(0)}%`;
-};
+// C used to be the raw count of highlighted cells, dressed up as "Low" / "Med"
+// / "HIGH". Those labels were never measured, and when they finally were they
+// ran backwards: over ~2,500 real hands C=5 returned 46.80% while C=3 returned
+// 53.98%. C is now the measured rate itself, so it cannot disagree with the
+// outcome it is describing. Below 30 resolved bets at a level there is no
+// number to show, and the side is displayed on its own.
 
 
 const StealthModeView = ({
@@ -57,7 +53,6 @@ const StealthModeView = ({
     // had its own copy that left out the Rule of Three and so disagreed with
     // the main screen on roughly 37% of hands.
     const { prediction, confidence } = predictNextHand(scorecard, highlightedCells, viewRow);
-    const formattedConfidence = formatConfidence(confidence, calibration);
     const measured = calibration?.get(confidence);
 
     return (
@@ -78,10 +73,12 @@ const StealthModeView = ({
                 </div>
 
                 <div className="stealth-prediction-display">
-                    <span className="prediction-value">P: {prediction || 'N/A'}</span>
-                    <span className={`confidence-value${measured?.belowBreakEven ? ' confidence-losing' : ''}`}>
-                        C: {formattedConfidence}
-                    </span>
+                    <span className="prediction-value">{prediction || 'N/A'}</span>
+                    {prediction && measured && (
+                        <span className={`confidence-value${measured.belowBreakEven ? ' confidence-losing' : ''}`}>
+                            , C: {Math.round(measured.rate * 100)}
+                        </span>
+                    )}
                 </div>
             </div>
 
