@@ -20,3 +20,6 @@ export const ANALYTICS_PATTERNS = [
     { seq: [2, 3], minLength: 3, isRepeating: true, name: 'pattern-232' },
     { seq: [3, 4, 3], minLength: 3, isRepeating: false, name: 'pattern-343' }
 ];
+
+// Backend base URL, shared by the scorecard store and the decision log.
+export const API_URL = 'https://baccarat-api-3hoh.onrender.com/api';

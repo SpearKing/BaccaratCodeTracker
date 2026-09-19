@@ -1,94 +1,243 @@
 // src/components/StatsModal.js
-import React from 'react';
-// MODIFIED: Removed unused import
-// import { ANALYTICS_PATTERNS } from '../utils/constants'; 
-import config from '../config';
+import React, { useMemo } from 'react';
+import { summarise, beatsBreakEven } from '../engine/stats';
+import { dedupe, byEngine } from '../engine/decisionLog';
+import { ENGINE_VERSION } from '../engine/predict';
 
-const StatsModal = ({ stats, onClose }) => {
+const pct = (x) => (x === null || x === undefined ? '--' : `${(x * 100).toFixed(1)}%`);
+const signed = (x) => (x === null || x === undefined ? '--' : `${x >= 0 ? '+' : ''}${x.toFixed(3)}`);
 
-    if (!stats) {
-        return (
-            <div className="stats-modal-overlay" onClick={onClose}>
-                <div className="stats-modal-content" onClick={(e) => e.stopPropagation()}>
-                    <button className="stats-close-button" onClick={onClose}>&times;</button>
-                    <h2>Statistics</h2>
-                    <p>No statistics available to display.</p>
-                </div>
-            </div>
-        );
+/** A hit rate with its confidence interval. The interval is the point. */
+const Rate = ({ tally: t }) => {
+    if (!t || t.n === 0) return <span className="stat-muted">no data</span>;
+    return (
+        <span>
+            {pct(t.interval.estimate)}
+            <span className="stat-interval"> ({pct(t.interval.low)}–{pct(t.interval.high)})</span>
+        </span>
+    );
+};
+
+const Verdict = ({ tally: t }) => {
+    if (!t || t.n === 0) return null;
+    if (beatsBreakEven(t)) {
+        return <span className="verdict-good">clears break-even</span>;
     }
-    
-    const getWinPct = (wins, losses) => {
-        const total = wins + losses;
-        if (total === 0) return '0.00%';
-        return ((wins / total) * 100).toFixed(2) + '%';
-    };
-    
-    const pPct = ((stats.pWins / (stats.pWins + stats.bWins)) * 100 || 0).toFixed(2);
-    const bPct = ((stats.bWins / (stats.pWins + stats.bWins)) * 100 || 0).toFixed(2);
-    
-    const patternStats = stats.patternStats instanceof Map ? stats.patternStats : new Map(Object.entries(stats.patternStats || {}));
+    if (t.interval.high !== null && t.interval.high < t.breakEven) {
+        return <span className="verdict-bad">below break-even</span>;
+    }
+    return <span className="verdict-unknown">indistinguishable from chance</span>;
+};
+
+const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose }) => {
+    const entries = useMemo(() => dedupe(log || []), [log]);
+
+    // Never average two engines together. Only the current one is scored.
+    const engines = useMemo(() => byEngine(entries), [entries]);
+    const current = useMemo(() => engines.get(ENGINE_VERSION) || [], [engines]);
+    const otherEngines = useMemo(
+        () => [...engines.keys()].filter((k) => k !== ENGINE_VERSION),
+        [engines]
+    );
+
+    const s = useMemo(() => summarise(current), [current]);
+
+    const pWins = tallies?.pWins ?? 0;
+    const bWins = tallies?.bWins ?? 0;
+    const totalHands = pWins + bWins;
+
+    const shortfall = s.overall.n > 0 && s.needed && s.needed !== Infinity
+        ? Math.max(0, s.needed - s.overall.n)
+        : null;
 
     return (
         <div className="stats-modal-overlay" onClick={onClose}>
             <div className="stats-modal-content" onClick={(e) => e.stopPropagation()}>
                 <button className="stats-close-button" onClick={onClose}>&times;</button>
                 <h2>Statistics</h2>
+
+                {/* ---- This card ------------------------------------------ */}
+                <h3>This card</h3>
                 <table className="stats-table">
-                    {config.capturePatternStats && (
-                        <thead>
-                            <tr>
-                                <th>Codes</th>
-                                <th>Count</th>
-                                <th>Wins</th>
-                                <th>Losses</th>
-                                <th>Pct</th>
-                            </tr>
-                        </thead>
-                    )}
-                    {config.capturePatternStats && (
-                        <tbody>
-                            {Array.from(patternStats.entries()).map(([name, data]) => (
-                                <tr key={name}>
-                                    <td>{name.replace('pattern-', '')}...</td>
-                                    <td>{data.count}</td>
-                                    <td>{data.wins}</td>
-                                    <td>{data.losses}</td>
-                                    <td>{getWinPct(data.wins, data.losses)}</td>
-                                </tr>
-                            ))}
-                            <tr className="table-spacer-major"><td colSpan="5"></td></tr>
-                        </tbody>
-                    )}
-                    
                     <tbody>
                         <tr>
                             <td className="bold">Banker</td>
-                            <td>{stats.bWins}</td>
-                            <td colSpan="3" className="bold">{bPct}%</td>
+                            <td>{bWins}</td>
+                            <td>{totalHands ? pct(bWins / totalHands) : '--'}</td>
                         </tr>
                         <tr>
                             <td className="bold">Player</td>
-                            <td>{stats.pWins}</td>
-                            <td colSpan="3" className="bold">{pPct}%</td>
+                            <td>{pWins}</td>
+                            <td>{totalHands ? pct(pWins / totalHands) : '--'}</td>
                         </tr>
-                         <tr className="table-spacer-major"><td colSpan="5"></td></tr>
-                         <tr>
-                            <th className="bold">Predictions:</th>
-                            <th>Correct</th>
-                            <th>Wrong</th>
-                            <th>Pct</th>
-                            <th></th>
-                         </tr>
-                         <tr>
-                            <td></td>
-                            <td>{stats.predictions.correct}</td>
-                            <td>{stats.predictions.wrong}</td>
-                            <td>{getWinPct(stats.predictions.correct, stats.predictions.wrong)}</td>
-                            <td></td>
-                         </tr>
                     </tbody>
                 </table>
+
+                {/* ---- Predictions ---------------------------------------- */}
+                <h3>Predictions <span className="stat-muted">(all cards)</span></h3>
+
+                {s.overall.n === 0 ? (
+                    <p className="stat-muted">
+                        No predictions recorded yet. Play some hands and they will be logged here.
+                    </p>
+                ) : (
+                    <>
+                        <table className="stats-table">
+                            <tbody>
+                                <tr>
+                                    <td className="bold">Hit rate</td>
+                                    <td colSpan="2"><Rate tally={s.overall} /></td>
+                                </tr>
+                                <tr>
+                                    <td>Break-even needed</td>
+                                    <td colSpan="2">{pct(s.overall.breakEven)}</td>
+                                </tr>
+                                <tr>
+                                    <td>Verdict</td>
+                                    <td colSpan="2"><Verdict tally={s.overall} /></td>
+                                </tr>
+                                <tr>
+                                    <td>Per unit staked</td>
+                                    <td colSpan="2">
+                                        {signed(s.overall.evPerUnit)}
+                                        <span className="stat-muted"> ({signed(s.overall.units)} total)</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Record</td>
+                                    <td colSpan="2">
+                                        {s.overall.correct}W / {s.overall.wrong}L
+                                        {s.overall.pushes > 0 && ` / ${s.overall.pushes} push`}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Offered an opinion</td>
+                                    <td colSpan="2">
+                                        {pct(s.coverage)}
+                                        <span className="stat-muted"> of {s.decisions} hands</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        {shortfall > 0 && (
+                            <p className="stat-note">
+                                At this hit rate it would take about {s.needed.toLocaleString()} predictions
+                                to tell a real edge from noise — roughly {shortfall.toLocaleString()} more
+                                than recorded so far.
+                            </p>
+                        )}
+
+                        {/* ---- Baselines ------------------------------------ */}
+                        <h3>Compared with betting blind</h3>
+                        <table className="stats-table">
+                            <thead>
+                                <tr><th>Strategy</th><th>Hit rate</th><th>Per unit</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr className="row-highlight">
+                                    <td className="bold">The engine</td>
+                                    <td><Rate tally={s.overall} /></td>
+                                    <td>{signed(s.overall.evPerUnit)}</td>
+                                </tr>
+                                {[
+                                    ['Always Banker', s.baselines.alwaysBanker],
+                                    ['Always Player', s.baselines.alwaysPlayer],
+                                    ['Always repeat', s.baselines.alwaysRepeat],
+                                    ['Always switch', s.baselines.alwaysSwitch],
+                                ].map(([label, t]) => (
+                                    <tr key={label}>
+                                        <td>{label}</td>
+                                        <td><Rate tally={t} /></td>
+                                        <td>{signed(t.evPerUnit)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* ---- By rule -------------------------------------- */}
+                        <h3>By rule</h3>
+                        <table className="stats-table">
+                            <thead>
+                                <tr><th>Rule</th><th>n</th><th>Hit rate</th></tr>
+                            </thead>
+                            <tbody>
+                                {[...s.bySource.entries()].map(([source, t]) => (
+                                    <tr key={source}>
+                                        <td>{source.replace(/-/g, ' ')}</td>
+                                        <td>{t.n}</td>
+                                        <td><Rate tally={t} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {/* ---- By confidence -------------------------------- */}
+                        <h3>By C-Level</h3>
+                        <p className="stat-note">
+                            If the C-Level means anything, higher levels should verify more often.
+                        </p>
+                        <table className="stats-table">
+                            <thead>
+                                <tr><th>C-Level</th><th>n</th><th>Hit rate</th></tr>
+                            </thead>
+                            <tbody>
+                                {[...s.byConfidence.entries()].map(([level, t]) => (
+                                    <tr key={level}>
+                                        <td>{level}</td>
+                                        <td>{t.n}</td>
+                                        <td><Rate tally={t} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        {s.byPattern.size > 0 && (
+                            <>
+                                <h3>By pattern</h3>
+                                <p className="stat-note">
+                                    Credited only to the pattern that actually drove the call.
+                                </p>
+                                <table className="stats-table">
+                                    <thead>
+                                        <tr><th>Pattern</th><th>n</th><th>Hit rate</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {[...s.byPattern.entries()].map(([name, t]) => (
+                                            <tr key={name}>
+                                                <td>{name.replace('pattern-', '')}</td>
+                                                <td>{t.n}</td>
+                                                <td><Rate tally={t} /></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </>
+                        )}
+                    </>
+                )}
+
+                {/* ---- Log housekeeping ----------------------------------- */}
+                <h3>Log</h3>
+                <p className="stat-note">
+                    {entries.length.toLocaleString()} decisions recorded
+                    {pendingSync > 0 && ` · ${pendingSync} waiting to sync`}
+                    {syncError && ` · offline (${syncError})`}
+                    {otherEngines.length > 0 &&
+                        ` · ${otherEngines.length} older engine version${otherEngines.length > 1 ? 's' : ''} excluded`}
+                </p>
+                <p className="stat-note stat-muted">Engine: {ENGINE_VERSION}</p>
+                <button
+                    className="delete-button"
+                    onClick={() => {
+                        if (window.confirm(
+                            'Delete every recorded prediction? This cannot be undone, and rebuilding ' +
+                            'the record takes thousands of hands.'
+                        )) onClearLog();
+                    }}
+                >
+                    Clear decision log
+                </button>
             </div>
         </div>
     );

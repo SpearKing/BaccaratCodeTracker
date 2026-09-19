@@ -7,10 +7,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useScorecardLogic } from './useScorecardLogic';
 import { handsFromGrid, deriveGrid } from '../engine/grid';
 
-const setup = () => {
-    const stats = { pWins: 0, bWins: 0, predictions: { correct: 0, wrong: 0 }, patternStats: new Map() };
-    return renderHook(() => useScorecardLogic(stats, () => {}));
-};
+const setup = (onDecision = () => {}) => renderHook(() => useScorecardLogic(onDecision));
 
 // Plays hands in order by clicking the P or B cell on each successive row.
 const play = (result, hands) => {
@@ -134,5 +131,83 @@ describe('recordTie', () => {
         const numbers = (grid, row) => grid[row].slice(3).map((c) => c.displayValue);
         expect(numbers(withTie.result.current.scorecard, 5))
             .toEqual(numbers(clean.result.current.scorecard, 4));
+    });
+});
+
+describe('decision logging', () => {
+    it('records one entry per hand played forward', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+
+        play(result, ['P', 'B', 'B']);
+
+        expect(logged).toHaveLength(3);
+        expect(logged.map((e) => e.actual)).toEqual(['P', 'B', 'B']);
+        expect(logged.map((e) => e.hand)).toEqual([1, 2, 3]);
+    });
+
+    it('stores what the engine was showing BEFORE the hand landed', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+
+        // Three Players in a row makes the Rule of Three predict another P.
+        play(result, ['B', 'P', 'P', 'P', 'B']);
+
+        const last = logged[logged.length - 1];
+        expect(last.predicted).toBe('P');       // what it said
+        expect(last.actual).toBe('B');          // what happened
+        expect(last.source).toBe('rule-of-three-player');
+    });
+
+    it('does NOT log an edit to a hand already recorded', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+
+        play(result, ['P', 'B', 'B']);
+        expect(logged).toHaveLength(3);
+
+        // Go back and change hand 2. The outcome was already known, so this is
+        // not a prediction and must not enter the record.
+        act(() => { result.current.handleCellClick(2, 0); });
+
+        expect(logged).toHaveLength(3);
+    });
+
+    it('logs a tie as a decision that pushed', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+
+        play(result, ['P', 'B']);
+        act(() => { result.current.recordTie(); });
+
+        expect(logged).toHaveLength(3);
+        expect(logged[2]).toMatchObject({ actual: 'T', hand: 3 });
+    });
+
+    it('keeps hands where the engine had no opinion', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+
+        play(result, ['P']);
+
+        // Nothing to go on for the very first hand.
+        expect(logged[0].predicted).toBeNull();
+        expect(logged[0].actual).toBe('P');
+    });
+
+    it('carries the preceding hands for re-deriving features later', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+
+        play(result, ['P', 'B', 'B', 'P']);
+
+        expect(logged[3].history).toBe('PBB');
+    });
+
+    it('stamps an engine version on every entry', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+        play(result, ['P', 'B']);
+        logged.forEach((e) => expect(e.engine).toBeTruthy());
     });
 });

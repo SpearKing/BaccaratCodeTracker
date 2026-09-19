@@ -15,6 +15,16 @@
 
 import { ANALYTICS_PATTERNS } from '../utils/constants';
 
+/**
+ * Identifies the rules that produced a prediction.
+ *
+ * Every logged decision carries this. Without it, the day the rules change the
+ * accuracy history silently becomes a blend of two different engines and can
+ * never be separated again. Bump it whenever the rules change in any way that
+ * could alter an output.
+ */
+export const ENGINE_VERSION = 'rule-of-three+pattern@1';
+
 const opposite = (winType) => (winType === 'P' ? 'B' : 'P');
 
 /** Which side won on this row, or null if it has not been played. */
@@ -34,7 +44,7 @@ export const winnerAtRow = (scorecard, rowIdx) => {
  * needs in order to tell the two rules apart after the fact.
  */
 export const predictNextHand = (scorecard, highlightedCells, rowIdx) => {
-    const none = { prediction: null, confidence: 0, source: null };
+    const none = { prediction: null, confidence: 0, source: null, pattern: null };
 
     if (!scorecard || rowIdx === -1 || rowIdx === null || rowIdx === undefined) return none;
     if (!scorecard[rowIdx]) return none;
@@ -64,10 +74,10 @@ export const predictNextHand = (scorecard, highlightedCells, rowIdx) => {
         const [lastRow, prevRow, twoRowsAgo] = recent.map((r) => scorecard[r]);
 
         if (lastRow[0].value === 'O' && prevRow[0].value === 'O' && twoRowsAgo[0].value === 'O') {
-            return { prediction: 'P', confidence: 3, source: 'rule-of-three-player' };
+            return { prediction: 'P', confidence: 3, source: 'rule-of-three-player', pattern: null };
         }
         if (lastRow[1].value === 'O' && prevRow[1].value === 'O' && twoRowsAgo[1].value === 'O') {
-            return { prediction: 'B', confidence: 3, source: 'rule-of-three-banker' };
+            return { prediction: 'B', confidence: 3, source: 'rule-of-three-banker', pattern: null };
         }
         if (
             lastRow[2].displayValue === 'O' &&
@@ -78,6 +88,7 @@ export const predictNextHand = (scorecard, highlightedCells, rowIdx) => {
                 prediction: opposite(lastWinType),
                 confidence: 3,
                 source: 'rule-of-three-alternating',
+                pattern: null,
             };
         }
     }
@@ -145,5 +156,8 @@ export const predictNextHand = (scorecard, highlightedCells, rowIdx) => {
         prediction,
         confidence,
         source: prediction ? 'pattern' : null,
+        // Only the pattern that actually drove the call. The old stats credited
+        // every pattern active on the row, which made them uninterpretable.
+        pattern: prediction ? patternName : null,
     };
 };

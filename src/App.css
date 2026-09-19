@@ -117,3 +117,15 @@ input:checked + .slider:before { transform: translateX(22px); }
 .scorecard-grid.analytics-off .grid-cell.row-number {
     flex-grow: 0.5; /* # column not as wide */
 }
+
+/* --- Stats panel ------------------------------------------------------- */
+.stats-modal-content h3 { margin: 18px 0 6px; font-size: 1em; opacity: 0.85; }
+.stats-modal-content h3:first-of-type { margin-top: 8px; }
+.stat-muted { opacity: 0.6; font-weight: normal; }
+.stat-interval { opacity: 0.6; font-size: 0.85em; white-space: nowrap; }
+.stat-note { font-size: 0.85em; opacity: 0.75; margin: 4px 0 8px; line-height: 1.4; }
+.stats-table .row-highlight { background-color: rgba(127, 127, 127, 0.12); }
+.verdict-good { color: var(--button-save-bg); font-weight: bold; }
+.verdict-bad { color: var(--button-delete-bg); font-weight: bold; }
+.verdict-unknown { opacity: 0.75; }
+.stats-modal-content .delete-button { background-color: var(--button-delete-bg); margin-top: 8px; }

@@ -69,6 +69,71 @@ app.post('/api/games', async (req, res) => {
   }
 });
 
+// --- Decision log ----------------------------------------------------------
+//
+// Append-only. The client keeps its own copy in localStorage and pushes here
+// opportunistically, so this endpoint has to tolerate the same entry arriving
+// more than once -- hence ON CONFLICT DO NOTHING against the dedupe index.
+
+app.post('/api/predictions', async (req, res) => {
+  const { entries } = req.body;
+  if (!Array.isArray(entries)) {
+    return res.status(400).send('Expected an array of entries');
+  }
+  if (entries.length === 0) {
+    return res.status(200).json({ inserted: 0 });
+  }
+
+  const query = `
+    INSERT INTO predictions
+      (schema_version, engine_version, card, hand_index, predicted,
+       confidence, source, pattern, actual, history, decided_at)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+    ON CONFLICT DO NOTHING;
+  `;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let inserted = 0;
+    for (const e of entries) {
+      const result = await client.query(query, [
+        e.v ?? 1, e.engine, e.card ?? null, e.hand, e.predicted ?? null,
+        e.confidence ?? null, e.source ?? null, e.pattern ?? null,
+        e.actual, e.history ?? null, e.at,
+      ]);
+      inserted += result.rowCount;
+    }
+    await client.query('COMMIT');
+    res.status(200).json({ inserted, received: entries.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).send('Server error');
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/predictions', async (req, res) => {
+  const { engine, limit } = req.query;
+  try {
+    const result = engine
+      ? await pool.query(
+          'SELECT * FROM predictions WHERE engine_version = $1 ORDER BY decided_at DESC LIMIT $2',
+          [engine, Math.min(Number(limit) || 5000, 50000)]
+        )
+      : await pool.query(
+          'SELECT * FROM predictions ORDER BY decided_at DESC LIMIT $1',
+          [Math.min(Number(limit) || 5000, 50000)]
+        );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
+});
+
 // DELETE endpoint - No changes needed here
 app.delete('/api/games/:name', async (req, res) => {
   const { name } = req.params;

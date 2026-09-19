@@ -17,8 +17,11 @@ fixtures make that arithmetic pinned down and checkable.
 | `grid.js` | The grid arithmetic, extracted from `useScorecardLogic.js` |
 | `predict.js` | The prediction rules, shared by the main view and stealth mode |
 | `analytics.js` | Pattern detection over the number columns |
+| `stats.js` | Confidence intervals, expected value, baselines, sample size |
+| `decisionLog.js` | The shape of a logged prediction, and log housekeeping |
 | `grid.test.js` | Golden-master tests plus documented behaviour |
 | `predict.test.js` | Characterisation tests for the prediction rules |
+| `stats.test.js` | Formulas checked against published worked examples |
 | `__fixtures__/golden-master.json` | 49 frozen grids, 61,136 cells |
 
 Each of these had a second copy living somewhere else before it moved here, and
@@ -73,6 +76,41 @@ the same hands with the ties removed. There is a test for precisely that.
 
 Because a tie is stored in a cell that already existed, old saved scorecards
 load unchanged and need no migration.
+
+## Measuring the engine
+
+`stats.js` and `decisionLog.js` exist because the app used to keep two running
+counters, `correct` and `wrong`, edited in place whenever a past hand changed.
+Nothing could be claimed from that: it could not be split by rule or by
+confidence, could not be replayed against a proposed change, and a few edits
+quietly corrupted it.
+
+What replaced it:
+
+- **Every decision is recorded**, including hands where the engine had no
+  opinion, so coverage stays measurable. Entries are never mutated.
+- **Only forward play is logged.** Re-clicking a hand that was already recorded
+  is an edit, not a prediction -- the outcome was already known. Logging it
+  would fill the record with hindsight.
+- **Every entry carries an engine version.** Without it, the day the rules
+  change the history silently becomes a blend of two engines that can never be
+  separated again. The stats panel scores one version at a time and says how
+  many entries it excluded.
+- **The log survives "New"**, and spans every card. It has to: separating a real
+  2-point edge from noise takes roughly 3,900 predictions.
+- **Written to localStorage first**, synced to the server opportunistically.
+  This is used on a casino floor; a decision that only existed in a failed HTTP
+  request is a decision lost.
+
+`stats.js` reports intervals rather than bare percentages, because after 200
+predictions "52% correct" honestly means "somewhere between 45% and 59%" -- a
+range that includes chance. It also scores against the right bar: Banker pays
+0.95, so a Banker call needs 51.28% just to break even, and an engine at 50.5%
+that leans Banker is losing money while appearing to be ahead.
+
+Its formulas are checked against published worked examples, not against a second
+implementation written by the same hand. A confidence interval that is subtly
+wrong still renders a plausible number.
 
 ## Verified properties
 

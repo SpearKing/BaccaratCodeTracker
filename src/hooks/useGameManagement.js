@@ -1,13 +1,11 @@
 // src/hooks/useGameManagement.js
 import { useState, useEffect, useCallback } from 'react';
-import { LAST_ACTIVE_SCORECARD_NAME_KEY, DEFAULT_GAME_NAME } from '../utils/constants';
-
-const API_URL = 'https://baccarat-api-3hoh.onrender.com/api';
+import { LAST_ACTIVE_SCORECARD_NAME_KEY, DEFAULT_GAME_NAME, API_URL } from '../utils/constants';
 
 const formatDate = (dateString) => { if (!dateString) return ''; const date = new Date(dateString); const offset = date.getTimezoneOffset(); const adjustedDate = new Date(date.getTime() + (offset * 60 * 1000)); const month = (adjustedDate.getMonth() + 1).toString().padStart(2, '0'); const day = adjustedDate.getDate().toString().padStart(2, '0'); const year = adjustedDate.getFullYear().toString().slice(-2); return `${month}/${day}/${year}`; };
 const toTitleCase = (str) => { return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()); };
 
-export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScorecard, setLastWinType, setLastWinRow, resetScorecardLogic, stats, setStats) => {
+export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScorecard, setLastWinType, setLastWinRow, resetScorecardLogic, stats) => {
     const [allSavedScorecards, setAllSavedScorecards] = useState({});
     const [currentScorecardName, setCurrentScorecardName] = useState(DEFAULT_GAME_NAME);
     const [saveGameInput, setSaveGameInput] = useState('');
@@ -25,13 +23,10 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
 
     useEffect(() => { loadAllGamesFromDB(); }, [loadAllGamesFromDB]);
 
-    const getSerializableStats = useCallback(() => {
-        if (!stats) return {};
-        const serializablePatternStats = stats.patternStats instanceof Map 
-            ? Object.fromEntries(stats.patternStats) 
-            : stats.patternStats;
-        return { ...stats, patternStats: serializablePatternStats };
-    }, [stats]);
+    // Prediction accuracy now lives in the decision log, which spans every card
+    // and is never rewritten. What is saved beside a card is just its own
+    // Player/Banker counts.
+    const getSerializableStats = useCallback(() => stats || {}, [stats]);
 
     const autoSaveLastSession = useCallback(async () => {
         const dataToSave = { scorecard, lastWinType, lastWinRow };
@@ -85,24 +80,15 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
         if (!loadGameSelect || !allSavedScorecards[loadGameSelect]) {
             return alert("Please select a scorecard to load.");
         }
-        const { scorecard: loadedScorecard, lastWinType: loadedType, lastWinRow: loadedRow, stats: loadedStats } = allSavedScorecards[loadGameSelect];
+        const { scorecard: loadedScorecard, lastWinType: loadedType, lastWinRow: loadedRow } = allSavedScorecards[loadGameSelect];
         setScorecard(loadedScorecard);
         setLastWinType(loadedType);
         setLastWinRow(loadedRow);
         setCurrentScorecardName(loadGameSelect);
         localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, loadGameSelect);
         
-        // ** THE FIX IS HERE **
-        // When loading stats, ensure patternStats is converted back to a Map.
-        if(loadedStats && loadedStats.patternStats) {
-            const patternStatsAsMap = new Map(Object.entries(loadedStats.patternStats));
-            setStats({...loadedStats, patternStats: patternStatsAsMap});
-        } else if (loadedStats) {
-            setStats(loadedStats);
-        }
-
         alert(`Scorecard "${loadGameSelect}" loaded!`);
-    }, [loadGameSelect, allSavedScorecards, setScorecard, setLastWinType, setLastWinRow, setStats]);
+    }, [loadGameSelect, allSavedScorecards, setScorecard, setLastWinType, setLastWinRow]);
 
     const handleDeleteSelectedGame = useCallback(async () => {
         if (!loadGameSelect || loadGameSelect === DEFAULT_GAME_NAME) {

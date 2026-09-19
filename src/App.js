@@ -1,68 +1,74 @@
 // src/App.js
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import './App.css';
 import { useTheme } from './hooks/useTheme';
 import { useAnalytics } from './hooks/useAnalytics';
 import { useScorecardLogic } from './hooks/useScorecardLogic';
 import { useGameManagement } from './hooks/useGameManagement';
+import { useDecisionLog } from './hooks/useDecisionLog';
 import { usePrediction } from './hooks/usePrediction';
 import ScorecardGrid from './components/ScorecardGrid';
 import ControlPanel from './components/ControlPanel';
 import StealthModeView from './components/StealthModeView';
 import StatsModal from './components/StatsModal';
-import { ANALYTICS_PATTERNS } from './utils/constants';
+import { API_URL } from './utils/constants';
 
 function App() {
     const [showControls, setShowControls] = useState(false);
     const [isStealthMode, setIsStealthMode] = useState(false);
     const [showStats, setShowStats] = useState(false);
-    
-    const [stats, setStats] = useState(() => {
-        const initialPatternStats = new Map();
-        ANALYTICS_PATTERNS.forEach(p => initialPatternStats.set(p.name, { count: 0, wins: 0, losses: 0 }));
-        return { pWins: 0, bWins: 0, predictions: { correct: 0, wrong: 0 }, patternStats: initialPatternStats };
-    });
+
+    const { log, append: appendDecision, clear: clearLog, pendingSync, syncError } =
+        useDecisionLog(API_URL);
+
+    // The card name lives in useGameManagement, which is built on top of
+    // useScorecardLogic -- so it is stamped on here rather than passed down,
+    // which would make the two hooks circular.
+    const cardNameRef = useRef(null);
+    const handleDecision = useCallback(
+        (entry) => appendDecision({ ...entry, card: cardNameRef.current }),
+        [appendDecision]
+    );
 
     const {
         scorecard, setScorecard, lastWinType, setLastWinType, lastWinRow,
         setLastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow,
         recordTie, maxRenderableColumns,
-    } = useScorecardLogic(stats, setStats);
+    } = useScorecardLogic(handleDecision);
 
     const { isDarkMode, setIsDarkMode } = useTheme();
     const { showAnalytics, setShowAnalytics, highlightedCells } = useAnalytics(scorecard, maxRenderableColumns);
-    
+
+    // Player/Banker counts are cheap to derive and never need storing.
+    const tallies = useMemo(() => {
+        let pWins = 0;
+        let bWins = 0;
+        for (let i = 1; i < scorecard.length; i++) {
+            if (scorecard[i][0].value === 'O') pWins++;
+            if (scorecard[i][1].value === 'O') bWins++;
+        }
+        return { pWins, bWins };
+    }, [scorecard]);
+
     const gameManagement = useGameManagement(
         scorecard, lastWinType, lastWinRow, setScorecard,
-        setLastWinType, setLastWinRow, resetScorecard, stats, setStats
+        setLastWinType, setLastWinRow, resetScorecard, tallies
     );
+
+    useEffect(() => {
+        cardNameRef.current = gameManagement.currentScorecardName;
+    }, [gameManagement.currentScorecardName]);
 
     const { predictedWinType, confidenceLevel } = usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
 
-    // MODIFIED: Added `stats` to the dependency array
-    useEffect(() => {
-        let pWins = 0;
-        let bWins = 0;
-        if (scorecard && scorecard.length > 0) {
-            for (let i = 1; i < scorecard.length; i++) {
-                if (scorecard[i][0].value === 'O') pWins++;
-                if (scorecard[i][1].value === 'O') bWins++;
-            }
-        }
-        // Check if stats have actually changed to prevent infinite loops
-        if (stats.pWins !== pWins || stats.bWins !== bWins) {
-            setStats(prevStats => ({...prevStats, pWins, bWins}));
-        }
-    }, [scorecard, stats]); // Added stats dependency
-
     const handleEnterStealthMode = () => { setIsDarkMode(true); setIsStealthMode(true); };
-    
+
     const handleFullReset = useCallback(() => {
         if (window.confirm("Are you sure you want to start a new game?")) {
+            // Note: the decision log deliberately survives this. It has to
+            // accumulate across cards -- telling a real edge from noise takes
+            // thousands of predictions, far more than one shoe.
             gameManagement.resetGameManagementState();
-            const initialPatternStats = new Map();
-            ANALYTICS_PATTERNS.forEach(p => initialPatternStats.set(p.name, { count: 0, wins: 0, losses: 0 }));
-            setStats({ pWins: 0, bWins: 0, predictions: { correct: 0, wrong: 0 }, patternStats: initialPatternStats });
         }
     }, [gameManagement]);
 
@@ -89,8 +95,17 @@ function App() {
             </div>
 
             {isStealthMode && ( <StealthModeView onExit={() => setIsStealthMode(false)} scorecard={scorecard} lastWinRow={lastWinRow} lastPlayedRow={lastPlayedRow} handleCellClick={handleCellClick} recordTie={recordTie} highlightedCells={highlightedCells} /> )}
-            
-            {showStats && ( <StatsModal stats={stats} onClose={() => setShowStats(false)} /> )}
+
+            {showStats && (
+                <StatsModal
+                    tallies={tallies}
+                    log={log}
+                    pendingSync={pendingSync}
+                    syncError={syncError}
+                    onClearLog={clearLog}
+                    onClose={() => setShowStats(false)}
+                />
+            )}
         </div>
     );
 }

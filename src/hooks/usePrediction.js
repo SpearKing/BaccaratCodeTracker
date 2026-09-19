@@ -8,23 +8,25 @@ import { predictNextHand } from '../engine/predict';
  * The rules themselves live in engine/predict.js so that stealth mode can use
  * the same implementation instead of its own copy.
  *
+ * Returns the engine's own result as `result` alongside the flattened names the
+ * UI already uses. The decision log takes `result` verbatim -- renaming the
+ * fields on the way through is how the log ended up recording "no opinion" for
+ * every hand the first time round.
+ *
  * `lastWinType` is no longer needed -- the engine reads the winner off the row
  * -- but it stays in the signature because callers already pass it, and
  * removing it is Phase 3's business.
  */
 export const usePrediction = (scorecard, lastWinType, lastWinRow, highlightedCells) => {
-    const { predictedWinType, confidenceLevel, predictionSource } = useMemo(() => {
-        const { prediction, confidence, source } = predictNextHand(
-            scorecard,
-            highlightedCells,
-            lastWinRow
-        );
-        return {
-            predictedWinType: prediction,
-            confidenceLevel: confidence,
-            predictionSource: source,
-        };
-    }, [scorecard, lastWinRow, highlightedCells]);
+    const result = useMemo(
+        () => predictNextHand(scorecard, highlightedCells, lastWinRow),
+        [scorecard, lastWinRow, highlightedCells]
+    );
 
-    return { predictedWinType, confidenceLevel, predictionSource };
+    return {
+        result,
+        predictedWinType: result.prediction,
+        confidenceLevel: result.confidence,
+        predictionSource: result.source,
+    };
 };

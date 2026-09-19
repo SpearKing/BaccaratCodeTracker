@@ -4,10 +4,9 @@ import { NUM_INITIAL_COLUMNS } from '../utils/constants';
 import { createInitialScorecard, calculateSingleRow, deriveGrid, handsFromGrid, TIE } from '../engine/grid';
 import { usePrediction } from './usePrediction';
 import { useAnalytics } from './useAnalytics';
-import config from '../config';
+import { makeEntry } from '../engine/decisionLog';
 
-
-export const useScorecardLogic = (stats, setStats) => {
+export const useScorecardLogic = (onDecision) => {
     const [scorecard, setScorecard] = useState(createInitialScorecard);
     const [lastWinType, setLastWinType] = useState(null);
     const [lastWinRow, setLastWinRow] = useState(-1);
@@ -22,37 +21,32 @@ export const useScorecardLogic = (stats, setStats) => {
     const lastPlayedRow = useMemo(() => handsFromGrid(scorecard).length, [scorecard]);
 
     const { highlightedCells } = useAnalytics(scorecard, maxRenderableColumns);
-    const { predictedWinType } = usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
+    // Captured at the moment a hand is recorded, so the log stores what was on
+    // screen BEFORE the outcome was known.
+    const prediction = usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
+
+    /**
+     * Records a decision, but only for forward play.
+     *
+     * Re-clicking a hand that was already recorded is an edit, not a
+     * prediction: the outcome was already known when it was made. Logging it
+     * would quietly inflate the record with hindsight.
+     */
+    const logDecision = useCallback((rowIdx, actual, handsAfter) => {
+        if (!onDecision) return;
+        onDecision(makeEntry({
+            handIndex: rowIdx,
+            prediction: prediction.result,
+            actual,
+            hands: handsAfter,
+        }));
+    }, [onDecision, prediction.result]);
     
     const handleCellClick = useCallback((rowIdx, colIdx) => {
         if (rowIdx === 0) return;
 
-        const predictionForThisRow = predictedWinType;
         const newActualWinType = colIdx === 0 ? 'P' : 'B';
-        const oldActualWinType = scorecard[rowIdx][0].value === 'O' ? 'P' : (scorecard[rowIdx][1].value === 'O' ? 'B' : null);
-
-        if (predictionForThisRow && lastWinRow === rowIdx - 1) {
-            setStats(currentStats => {
-                const newStats = { ...currentStats, predictions: { ...currentStats.predictions }, patternStats: new Map(currentStats.patternStats) };
-                if (oldActualWinType && oldActualWinType !== newActualWinType) {
-                    const wasOldResultCorrect = predictionForThisRow === oldActualWinType;
-                    if (wasOldResultCorrect) { newStats.predictions.correct = Math.max(0, newStats.predictions.correct - 1); } else { newStats.predictions.wrong = Math.max(0, newStats.predictions.wrong - 1); }
-                    if (config.capturePatternStats) {
-                        const activePatterns = new Set();
-                        if (lastWinRow > 0 && scorecard[lastWinRow]) { for (let col = 3; col < scorecard[lastWinRow].length; col++) { const cellKey = `${lastWinRow}-${col}`; if (highlightedCells.has(cellKey)) { activePatterns.add(highlightedCells.get(cellKey)); } } }
-                        activePatterns.forEach(pName => { const patternData = newStats.patternStats.get(pName); if (patternData) { if (wasOldResultCorrect) { patternData.wins = Math.max(0, patternData.wins - 1); } else { patternData.losses = Math.max(0, patternData.losses - 1); } } });
-                    }
-                }
-                const isNewResultCorrect = predictionForThisRow === newActualWinType;
-                if (isNewResultCorrect) { newStats.predictions.correct++; } else { newStats.predictions.wrong++; }
-                if (config.capturePatternStats) {
-                    const activePatterns = new Set();
-                    if (lastWinRow > 0 && scorecard[lastWinRow]) { for (let col = 3; col < scorecard[lastWinRow].length; col++) { const cellKey = `${lastWinRow}-${col}`; if (highlightedCells.has(cellKey)) { activePatterns.add(highlightedCells.get(cellKey)); } } }
-                    activePatterns.forEach(pName => { const patternData = newStats.patternStats.get(pName); if (patternData) { if (isNewResultCorrect) { patternData.wins++; } else { patternData.losses++; } } });
-                }
-                return newStats;
-            });
-        }
+        const isForwardPlay = rowIdx === lastPlayedRow + 1;
 
         const currentScorecardCopy = JSON.parse(JSON.stringify(scorecard));
         // The running counts continue from the nearest DECIDED row, stepping
@@ -68,8 +62,11 @@ export const useScorecardLogic = (stats, setStats) => {
         setScorecard(finalScorecard);
         setLastWinType(newActualWinType);
         setLastWinRow(rowIdx);
-    // MODIFIED: Removed unnecessary dependencies
-    }, [scorecard, lastWinRow, predictedWinType, highlightedCells, setStats]);
+
+        if (isForwardPlay) {
+            logDecision(rowIdx, newActualWinType, [...handsFromGrid(scorecard), newActualWinType]);
+        }
+    }, [scorecard, lastPlayedRow, logDecision]);
     
     const resetScorecard = useCallback(() => { setScorecard(createInitialScorecard()); setLastWinType(null); setLastWinRow(-1); }, []);
 
@@ -113,7 +110,11 @@ export const useScorecardLogic = (stats, setStats) => {
         const next = [...hands, TIE];
         if (next.length >= scorecard.length) return;
         setScorecard(deriveGrid(next, scorecard.length - 1));
-    }, [scorecard]);
+
+        // A tie is still a decision point: the engine had an opinion and the
+        // hand pushed. Leaving it out would overstate coverage.
+        logDecision(next.length, TIE, next);
+    }, [scorecard, logDecision]);
 
     return { scorecard, setScorecard, lastWinType, setLastWinType, lastWinRow, setLastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow, recordTie, maxRenderableColumns };
 };
