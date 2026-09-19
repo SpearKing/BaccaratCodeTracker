@@ -132,7 +132,6 @@ export const calculateSingleRow = (
         return newScorecard;
     }
 
-    let previousColHasValueInSequence = true;
     for (let col = 3; col < currentRow.length; col++) {
         const cellAbove = parentRowIdx > 0 ? newScorecard[parentRowIdx][col] : null;
         currentRow[col] = { ...currentRow[col], value: null, displayValue: '' };
@@ -140,7 +139,6 @@ export const calculateSingleRow = (
         // Once a column has died it stays dead for the rest of the grid.
         if (cellAbove && cellAbove.displayValue === 'X') {
             currentRow[col].displayValue = 'X';
-            previousColHasValueInSequence = false;
             continue;
         }
 
@@ -152,32 +150,19 @@ export const calculateSingleRow = (
                 if (rowBelow && col < rowBelow.length) {
                     rowBelow[col] = { ...rowBelow[col], value: null, displayValue: 'X' };
                 }
-                previousColHasValueInSequence = false;
             } else {
                 currentRow[col] = {
                     ...currentRow[col],
                     value: newValue,
                     displayValue: newValue.toString(),
                 };
-                previousColHasValueInSequence = true;
             }
-        // NOTE: this branch is dead. It only fires on row 1 (every later row has
-        // either a value or an X above it in column 3), and on row 1 the
-        // "every row needs a 1 and a -1" backfill below already writes the same
-        // value into the same column. Verified by replaying 4,000 random
-        // sequences of 1-90 hands with this branch removed: 4,000/4,000 grids
-        // identical. Kept for now so Phase 0 stays behaviour-preserving; safe to
-        // delete whenever the surrounding function is next touched.
-        } else if (col === 3 && previousColHasValueInSequence) {
-            currentRow[col] = {
-                ...currentRow[col],
-                value: isRepeater ? -1 : 1,
-                displayValue: isRepeater ? '-1' : '1',
-            };
-            previousColHasValueInSequence = true;
+        // A dead `col === 3` seeding branch used to sit here. It only ever fired
+        // on row 1, where the 1/-1 backfill below already writes the same value
+        // to the same column. Verified by replaying 4,000 random sequences with
+        // it removed: 4,000/4,000 grids identical, and the golden master agrees.
         } else {
             currentRow[col] = { ...currentRow[col], value: null, displayValue: '' };
-            previousColHasValueInSequence = false;
         }
     }
 

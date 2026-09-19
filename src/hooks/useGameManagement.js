@@ -12,6 +12,12 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
     const [loadGameSelect, setLoadGameSelect] = useState('');
     const [saveDate, setSaveDate] = useState(new Date().toISOString().split('T')[0]);
 
+    // Whether the card made it to the server. The autosave used to swallow its
+    // failures into a console.error, so a sleeping backend looked identical to
+    // a successful save. Nothing is lost when it fails -- the card is still in
+    // memory -- but you had no way to know it had not landed.
+    const [saveState, setSaveState] = useState({ status: 'idle', at: null, error: null });
+
     const loadAllGamesFromDB = useCallback(async () => {
         try {
             const response = await fetch(`${API_URL}/games`);
@@ -31,9 +37,15 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
     const autoSaveLastSession = useCallback(async () => {
         const dataToSave = { scorecard, lastWinType, lastWinRow };
         const serializableStats = getSerializableStats();
+        setSaveState((prev) => ({ ...prev, status: 'saving' }));
         try {
-            await fetch(`${API_URL}/games`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: DEFAULT_GAME_NAME, data: dataToSave, stats: serializableStats }), });
-        } catch (error) { console.error('Failed to save session:', error); }
+            const response = await fetch(`${API_URL}/games`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: DEFAULT_GAME_NAME, data: dataToSave, stats: serializableStats }), });
+            if (!response.ok) throw new Error(`Server returned ${response.status}`);
+            setSaveState({ status: 'saved', at: Date.now(), error: null });
+        } catch (error) {
+            console.error('Failed to save session:', error);
+            setSaveState((prev) => ({ status: 'failed', at: prev.at, error: error.message }));
+        }
     }, [scorecard, lastWinType, lastWinRow, getSerializableStats]);
     
     useEffect(() => {
@@ -120,5 +132,5 @@ export const useGameManagement = (scorecard, lastWinType, lastWinRow, setScoreca
         setLoadGameSelect('');
     }, [resetScorecardLogic]);
 
-    return { allSavedScorecards, currentScorecardName, saveGameInput, setSaveGameInput, saveDate, setSaveDate, loadGameSelect, setLoadGameSelect, handleQuickSave, handleSaveAs, handleLoadSelectedGame, handleDeleteSelectedGame, resetGameManagementState };
+    return { saveState, allSavedScorecards, currentScorecardName, saveGameInput, setSaveGameInput, saveDate, setSaveDate, loadGameSelect, setLoadGameSelect, handleQuickSave, handleSaveAs, handleLoadSelectedGame, handleDeleteSelectedGame, resetGameManagementState };
 };

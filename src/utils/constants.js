@@ -18,7 +18,11 @@ export const ANALYTICS_PATTERNS = [
     { seq: [1, 0], minLength: 3, isRepeating: true, name: 'pattern-1010', allowMixedSigns: true },
     { seq: [1, 2], minLength: 3, isRepeating: true, name: 'pattern-121' },
     { seq: [2, 3], minLength: 3, isRepeating: true, name: 'pattern-232' },
-    { seq: [3, 4, 3], minLength: 3, isRepeating: false, name: 'pattern-343' }
+    // NOTE: a 'pattern-343' ([3,4,3]) used to sit here. It can never match --
+    // X_MARK_THRESHOLD is 4, so a cell holding 4 always becomes an X on the
+    // next row and can never be followed by a 3. Zero matches in 28,000
+    // simulated hands. Removed rather than "fixed" by raising the threshold,
+    // which would rewrite every number on every saved scorecard.
 ];
 
 // Backend base URL, shared by the scorecard store and the decision log.

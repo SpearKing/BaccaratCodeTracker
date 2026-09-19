@@ -19,6 +19,7 @@ const ControlPanel = ({
     handleDeleteSelectedGame,
     handleFullReset,
     recordTie,
+    saveState,
     predictedWinType, confidenceLevel,
 }) => {
     const gameNamePresets = ["Boomtown", "L'auberge", "Treasure Chest", "Ceaser's NO."];
@@ -48,6 +49,14 @@ const ControlPanel = ({
                 <div className="current-session-display">
                     Current Session: <span>{currentScorecardName}</span>
                 </div>
+                {saveState?.status === 'failed' && (
+                    <div className="save-warning">
+                        Not saved to the server ({saveState.error}).
+                        {saveState.at
+                            ? ' Your card is safe on this device; the last copy that reached the server is older.'
+                            : ' Your card is safe on this device but has never reached the server.'}
+                    </div>
+                )}
                 <div className="quick-save-container">
                     <button onClick={handleFullReset} className="reset-button">New</button>
                     <button onClick={handleQuickSave} className="quick-save-button">Save</button>
