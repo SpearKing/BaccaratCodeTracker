@@ -125,6 +125,9 @@ export const evaluateModel = (cards, { margin = 0, ...modelOptions } = {}) => {
                 actual: hand,
                 history: context.join(''),
                 at: null,
+                // Probability the model gave to what actually happened. Kept so
+                // that log loss can be recomputed over any slice of the run.
+                pActual: dist[hand],
             });
 
             totalLogLoss += logLoss(dist, hand);

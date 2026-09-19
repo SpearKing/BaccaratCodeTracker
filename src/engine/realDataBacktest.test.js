@@ -491,4 +491,59 @@ run('backtest over real saved scorecards', () => {
 
         expect(learned.n).toBeGreaterThan(0);
     });
+
+    // Does the model get better as it accumulates hands?
+    //
+    // This separates two things that are easy to conflate. More data always
+    // makes the model's ESTIMATES more precise. It only makes its PREDICTIONS
+    // more accurate if there is something there to learn. If the true
+    // probability is 50/50 whatever the context, a perfectly estimated model
+    // still hits 50% -- it just gets to 50% faster and with less flailing.
+    it('plots the learning curve', () => {
+        const { cardsInOrder, evaluateModel, dropDuplicateCards } = require('./backtest');
+        const { summarise } = require('./stats');
+        const { logLoss, BASE_PRIOR } = require('./model');
+
+        const looksSynthetic = (name) => /test|pattern|wizard|loser|linda|stat\d?\s/i.test(name);
+        const { kept } = dropDuplicateCards(cardsInOrder(games).filter((c) => !looksSynthetic(c.name)));
+
+        const run = evaluateModel(kept, { margin: 0 });
+        const all = run.entries;
+
+        console.log('\n' + '='.repeat(78));
+        console.log('LEARNING CURVE — does it improve as hands accumulate?');
+        console.log('='.repeat(78));
+        console.log(`${all.length.toLocaleString()} hands, in the order the model saw them\n`);
+
+        const BUCKETS = 5;
+        const size = Math.floor(all.length / BUCKETS);
+        console.log('hands seen'.padEnd(20) + 'bets'.padStart(6) + '  ' + 'hit rate'.padStart(26) + '  ' + 'log loss'.padStart(9) + 'vs base'.padStart(10));
+        console.log('-'.repeat(78));
+
+        for (let b = 0; b < BUCKETS; b++) {
+            const slice = all.slice(b * size, b === BUCKETS - 1 ? all.length : (b + 1) * size);
+            const t = summarise(slice).overall;
+            // The model's own log loss over this slice, from the probability it
+            // gave to what actually happened, against the base-rate reference.
+            const ll = slice.reduce((acc, e) => acc - Math.log(Math.max(e.pActual, 1e-9)), 0) / slice.length;
+            const base = slice.reduce((acc, e) => acc + logLoss(BASE_PRIOR, e.actual), 0) / slice.length;
+            const label = `${(b * size).toLocaleString()}–${((b === BUCKETS - 1 ? all.length : (b + 1) * size)).toLocaleString()}`;
+            console.log(
+                label.padEnd(20) +
+                String(t.n).padStart(6) + '  ' +
+                (t.n ? ci(t) : 'no bets').padStart(26) + '  ' +
+                ll.toFixed(4).padStart(9) +
+                `${base - ll >= 0 ? '+' : ''}${(base - ll).toFixed(4)}`.padStart(10)
+            );
+        }
+
+        console.log('\n--- how fast does the interval narrow? ---');
+        [500, 2500, 10000, 40000, 160000].forEach((n) => {
+            const halfWidth = 1.96 * Math.sqrt(0.25 / n);
+            console.log(`  n=${String(n).padStart(7)}   +/- ${(halfWidth * 100).toFixed(2)}pp   ~${Math.round(n / 70)} shoes`);
+        });
+        console.log('='.repeat(78) + '\n');
+
+        expect(all.length).toBeGreaterThan(0);
+    });
 });
