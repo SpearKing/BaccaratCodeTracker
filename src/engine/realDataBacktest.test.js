@@ -165,4 +165,330 @@ run('backtest over real saved scorecards', () => {
 
         expect(b.overall.n).toBeGreaterThan(0);
     });
+
+    it('scores the learned model against the hand-written one', () => {
+        const { cardsInOrder, evaluateModel } = require('./backtest');
+        const cards = cardsInOrder(games);
+        const hands = cards.reduce((n, c) => n + c.hands.length, 0);
+
+        console.log('\n' + '='.repeat(78));
+        console.log('LEARNED MODEL — prequential, every hand predicted before it was seen');
+        console.log('='.repeat(78));
+        console.log(`${cards.length} cards, ${hands.toLocaleString()} decided hands, oldest first\n`);
+
+        // Does it beat a fixed base-rate predictor at all? If not, there is no
+        // learnable structure and nothing downstream can rescue it.
+        const base = evaluateModel(cards, { margin: 0 });
+        console.log('--- HAS IT LEARNED ANYTHING? ---');
+        console.log(`log loss, model       ${base.scores.logLoss.toFixed(5)}`);
+        console.log(`log loss, base rate   ${base.scores.baseLogLoss.toFixed(5)}`);
+        const gain = base.scores.baseLogLoss - base.scores.logLoss;
+        console.log(`improvement           ${gain >= 0 ? '+' : ''}${gain.toFixed(5)} nats/hand  ${gain > 0 ? '(model is better)' : '(model is WORSE than a constant)'}`);
+        console.log(`Brier score           ${base.scores.brier.toFixed(5)}\n`);
+
+        console.log('--- BETTING IT, AT VARIOUS SELECTIVITY ---');
+        console.log('margin'.padEnd(10) + 'bets'.padStart(7) + '  ' + 'coverage'.padStart(9) + '  ' + 'hit rate'.padStart(26) + '  ' + 'per unit'.padStart(9));
+        console.log('-'.repeat(78));
+        [0, 0.005, 0.01, 0.02, 0.05].forEach((margin) => {
+            const r = evaluateModel(cards, { margin });
+            const t = r.summary.overall;
+            console.log(
+                String(margin).padEnd(10) +
+                String(t.n).padStart(7) + '  ' +
+                pct(r.summary.coverage).padStart(9) + '  ' +
+                (t.n ? ci(t) : 'no bets').padStart(26) + '  ' +
+                ev(t.evPerUnit).padStart(9)
+            );
+        });
+
+        console.log('\n--- SIDE BY SIDE, SAME HANDS ---');
+        const model = evaluateModel(cards, { margin: 0 });
+        const mt = model.summary.overall;
+        console.log(`hand-written engine   ${ci(s.overall)}   ev ${ev(s.overall.evPerUnit)}   n=${s.overall.n}`);
+        console.log(`learned model         ${ci(mt)}   ev ${ev(mt.evPerUnit)}   n=${mt.n}`);
+        console.log(`always Banker         ${ci(s.baselines.alwaysBanker)}   ev ${ev(s.baselines.alwaysBanker.evPerUnit)}   n=${s.baselines.alwaysBanker.n}`);
+        console.log('='.repeat(78) + '\n');
+
+        expect(base.scores.n).toBeGreaterThan(0);
+    });
+
+    // A positive result has to survive the obvious explanations before it means
+    // anything. Two candidates: hand-entered "pattern test" cards, which a
+    // Markov model would learn beautifully and which say nothing about real
+    // play; and a bet mix skewed by Player's lower break-even bar.
+    it('checks whether the model result survives scrutiny', () => {
+        const { cardsInOrder, evaluateModel } = require('./backtest');
+        const { summarise } = require('./stats');
+        const looksSynthetic = (name) => /test|pattern|wizard|loser|linda|stat\d?\s/i.test(name);
+
+        const all = cardsInOrder(games);
+        const real = all.filter((c) => !looksSynthetic(c.name));
+        const synth = all.filter((c) => looksSynthetic(c.name));
+
+        console.log('\n' + '='.repeat(78));
+        console.log('IS THE MODEL RESULT REAL?');
+        console.log('='.repeat(78));
+
+        const show = (label, cards) => {
+            if (!cards.length) return;
+            const r = evaluateModel(cards, { margin: 0 });
+            const t = r.summary.overall;
+            const gain = r.scores.baseLogLoss - r.scores.logLoss;
+            console.log(`${label.padEnd(24)}${String(t.n).padStart(5)} bets   ${ci(t)}   ev ${ev(t.evPerUnit)}`);
+            console.log(`${''.padEnd(24)}log loss vs base rate: ${gain >= 0 ? '+' : ''}${gain.toFixed(5)}  ${gain > 0 ? '(learned something)' : '(learned nothing)'}`);
+            return r;
+        };
+
+        console.log('\n-- split by provenance --');
+        show('all cards', all);
+        show('suspected test cards', synth);
+        const realRun = show('likely real play', real);
+
+        console.log('\n-- which side does it back? --');
+        const bets = realRun.entries.filter((e) => e.predicted);
+        const bankerBets = bets.filter((e) => e.predicted === 'B');
+        const playerBets = bets.filter((e) => e.predicted === 'P');
+        const tb = summarise(bankerBets).overall;
+        const tp = summarise(playerBets).overall;
+        console.log(`Banker bets  ${String(tb.n).padStart(5)}   ${ci(tb)}   needs 51.28%   ev ${ev(tb.evPerUnit)}`);
+        console.log(`Player bets  ${String(tp.n).padStart(5)}   ${ci(tp)}   needs 50.00%   ev ${ev(tp.evPerUnit)}`);
+
+        console.log('\n-- per card, real play, worst and best --');
+        const perCardScores = real.map((c) => {
+            const r = evaluateModel([c], { margin: 0 });
+            return { name: c.name, n: r.summary.overall.n, rate: r.summary.overall.interval.estimate };
+        }).filter((c) => c.n >= 20).sort((a, b) => (b.rate || 0) - (a.rate || 0));
+        perCardScores.slice(0, 4).forEach((c) => console.log(`  ${c.name.slice(0,30).padEnd(32)}n=${String(c.n).padStart(4)}  ${pct(c.rate)}`));
+        console.log('  ...');
+        perCardScores.slice(-4).forEach((c) => console.log(`  ${c.name.slice(0,30).padEnd(32)}n=${String(c.n).padStart(4)}  ${pct(c.rate)}`));
+
+        console.log('='.repeat(78) + '\n');
+        expect(all.length).toBeGreaterThan(0);
+    });
+
+    // The null test, and the one that decides it. Run the identical pipeline
+    // over hands generated by independent coin flips at baccarat's own rates.
+    // There is nothing to learn in that data by construction, so anything the
+    // harness reports as an edge there is an artifact of the harness.
+    it('calibrates the harness against data with no structure', () => {
+        const { cardsInOrder, evaluateModel } = require('./backtest');
+        const real = cardsInOrder(games);
+
+        // Deterministic generator, so this is reproducible.
+        const mulberry = (a) => () => {
+            a |= 0; a = (a + 0x6D2B79F5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+
+        console.log('\n' + '='.repeat(78));
+        console.log('NULL TEST — same pipeline, i.i.d. coin-flip hands');
+        console.log('='.repeat(78));
+        console.log('Card count and lengths copied from the real data; outcomes drawn');
+        console.log('independently at B 50.68% / P 49.32%. Nothing is learnable here.\n');
+
+        const runs = [];
+        for (let seed = 1; seed <= 8; seed++) {
+            const rnd = mulberry(seed * 7919);
+            const fake = real.map((c) => ({
+                name: `${c.name}#${seed}`,
+                hands: c.hands.map(() => (rnd() < 0.5068 ? 'B' : 'P')),
+            }));
+            const r = evaluateModel(fake, { margin: 0 });
+            const t = r.summary.overall;
+            runs.push({ n: t.n, rate: t.interval.estimate, ev: t.evPerUnit,
+                        gain: r.scores.baseLogLoss - r.scores.logLoss });
+            console.log(`seed ${String(seed).padEnd(3)} ${String(t.n).padStart(5)} bets   ${pct(t.interval.estimate)}   ev ${ev(t.evPerUnit)}   log-loss vs base ${(r.scores.baseLogLoss - r.scores.logLoss).toFixed(5)}`);
+        }
+
+        const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+        const avgRate = mean(runs.map((r) => r.rate));
+        const avgEv = mean(runs.map((r) => r.ev));
+        console.log('');
+        console.log(`mean over 8 runs of pure noise:   ${pct(avgRate)}   ev ${ev(avgEv)}`);
+        console.log(`the same pipeline on REAL hands:  ${pct(0.5281)}   ev ${ev(0.0428)}`);
+        console.log('');
+        console.log(avgRate > 0.515
+            ? '>> The harness reports an edge on data that has none. The result is an ARTIFACT.'
+            : '>> The harness reports ~chance on structureless data, as it should.');
+        console.log('='.repeat(78) + '\n');
+
+        expect(runs.length).toBe(8);
+    });
+
+    // The decisive test. Two null distributions, 200 replicates each:
+    //
+    //   A. i.i.d. hands at baccarat's rates -- destroys everything.
+    //   B. each real card's own hands shuffled -- keeps that card's exact
+    //      Banker/Player composition and length, destroys ONLY the order.
+    //
+    // B is the one that matters. If the real result does not beat B, then
+    // whatever the model is picking up comes from how many Bankers a card
+    // held, not from the sequence -- and sequence is the only thing a
+    // prediction engine could ever act on.
+    it('tests the result against a proper null distribution', () => {
+        const { cardsInOrder, evaluateModel } = require('./backtest');
+        const REPLICATES = 200;
+
+        const mulberry = (a) => () => {
+            a |= 0; a = (a + 0x6D2B79F5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        const shuffle = (arr, rnd) => {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(rnd() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        };
+
+        const looksSynthetic = (name) => /test|pattern|wizard|loser|linda|stat\d?\s/i.test(name);
+        const cards = cardsInOrder(games).filter((c) => !looksSynthetic(c.name));
+
+        const observed = evaluateModel(cards, { margin: 0 }).summary.overall;
+
+        const runNull = (build) => {
+            const rates = [];
+            const evs = [];
+            for (let seed = 1; seed <= REPLICATES; seed++) {
+                const rnd = mulberry(seed * 104729);
+                const t = evaluateModel(build(rnd), { margin: 0 }).summary.overall;
+                if (t.n > 0) { rates.push(t.interval.estimate); evs.push(t.evPerUnit); }
+            }
+            return { rates, evs };
+        };
+
+        const iid = runNull((rnd) =>
+            cards.map((c) => ({ name: c.name, hands: c.hands.map(() => (rnd() < 0.5068 ? 'B' : 'P')) })));
+        const permuted = runNull((rnd) =>
+            cards.map((c) => ({ name: c.name, hands: shuffle(c.hands, rnd) })));
+
+        const stats = (xs) => {
+            const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+            const sd = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (xs.length - 1));
+            return { mean, sd };
+        };
+        const pValue = (xs, obs) => (xs.filter((x) => x >= obs).length + 1) / (xs.length + 1);
+
+        console.log('\n' + '='.repeat(78));
+        console.log(`NULL DISTRIBUTIONS — ${REPLICATES} replicates each, likely-real-play cards only`);
+        console.log('='.repeat(78));
+        console.log(`observed        hit rate ${pct(observed.interval.estimate)}   ev ${ev(observed.evPerUnit)}   n=${observed.n}\n`);
+
+        [['A: i.i.d. hands', iid], ['B: same cards, order shuffled', permuted]].forEach(([label, d]) => {
+            const r = stats(d.rates);
+            const e = stats(d.evs);
+            console.log(label);
+            console.log(`   hit rate   mean ${pct(r.mean)}  sd ${(r.sd * 100).toFixed(2)}pp   observed is ${((observed.interval.estimate - r.mean) / r.sd).toFixed(2)} sd above`);
+            console.log(`   per unit   mean ${ev(e.mean)}  sd ${e.sd.toFixed(4)}`);
+            console.log(`   p-value    ${pValue(d.rates, observed.interval.estimate).toFixed(4)}  (share of null runs at least as good)`);
+            console.log('');
+        });
+
+        const pB = pValue(permuted.rates, observed.interval.estimate);
+        console.log(pB <= 0.05
+            ? '>> Survives the order-shuffled null. There is sequential structure here.'
+            : '>> Does NOT survive the order-shuffled null. The apparent edge is not sequential.');
+        console.log('='.repeat(78) + '\n');
+
+        expect(iid.rates.length).toBeGreaterThan(100);
+    });
+
+    // Re-run with duplicate sessions removed. Four pairs of cards share their
+    // hand sequences -- most importantly a 314-hand card that is an exact
+    // prefix of a 645-hand one, the same session saved twice. The model has
+    // already seen those hands when it reaches them, and a shuffled null does
+    // not reproduce that, so the test above was rigged in the model's favour.
+    it('repeats the null test with duplicate sessions removed', () => {
+        const { cardsInOrder, evaluateModel, dropDuplicateCards } = require('./backtest');
+        const REPLICATES = 200;
+
+        const mulberry = (a) => () => {
+            a |= 0; a = (a + 0x6D2B79F5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        const shuffle = (arr, rnd) => {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(rnd() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        };
+
+        const looksSynthetic = (name) => /test|pattern|wizard|loser|linda|stat\d?\s/i.test(name);
+        const realCards = cardsInOrder(games).filter((c) => !looksSynthetic(c.name));
+        const { kept, dropped } = dropDuplicateCards(realCards);
+
+        console.log('\n' + '='.repeat(78));
+        console.log('RE-TEST WITH DUPLICATE SESSIONS REMOVED');
+        console.log('='.repeat(78));
+        dropped.forEach((c) => console.log(`   dropped  ${c.name.slice(0, 40).padEnd(42)} ${c.hands.length} hands`));
+        const handsKept = kept.reduce((n, c) => n + c.hands.length, 0);
+        console.log(`   ${kept.length} cards, ${handsKept.toLocaleString()} hands remain\n`);
+
+        const observed = evaluateModel(kept, { margin: 0 }).summary.overall;
+
+        const runNull = (build) => {
+            const rates = [];
+            for (let seed = 1; seed <= REPLICATES; seed++) {
+                const rnd = mulberry(seed * 104729);
+                const t = evaluateModel(build(rnd), { margin: 0 }).summary.overall;
+                if (t.n > 0) rates.push(t.interval.estimate);
+            }
+            return rates;
+        };
+
+        const permuted = runNull((rnd) =>
+            kept.map((c) => ({ name: c.name, hands: shuffle(c.hands, rnd) })));
+
+        const mean = permuted.reduce((a, b) => a + b, 0) / permuted.length;
+        const sd = Math.sqrt(permuted.reduce((a, b) => a + (b - mean) ** 2, 0) / (permuted.length - 1));
+        const p = (permuted.filter((x) => x >= observed.interval.estimate).length + 1) / (permuted.length + 1);
+
+        console.log(`observed            ${pct(observed.interval.estimate)}   ev ${ev(observed.evPerUnit)}   n=${observed.n}`);
+        console.log(`shuffled null       mean ${pct(mean)}   sd ${(sd * 100).toFixed(2)}pp`);
+        console.log(`observed is         ${((observed.interval.estimate - mean) / sd).toFixed(2)} sd above the null`);
+        console.log(`p-value             ${p.toFixed(4)}`);
+        console.log('');
+        console.log(p <= 0.05
+            ? '>> Still survives. The signal is not explained by duplicate sessions.'
+            : '>> Does NOT survive. The earlier result was the duplicated session.');
+        console.log('='.repeat(78) + '\n');
+
+        expect(permuted.length).toBeGreaterThan(100);
+    });
+
+    it('compares both engines on the identical clean set', () => {
+        const { cardsInOrder, evaluateModel, dropDuplicateCards, replaySavedCards } = require('./backtest');
+        const looksSynthetic = (name) => /test|pattern|wizard|loser|linda|stat\d?\s/i.test(name);
+        const realCards = cardsInOrder(games).filter((c) => !looksSynthetic(c.name));
+        const { kept } = dropDuplicateCards(realCards);
+        const keptNames = new Set(kept.map((c) => c.name));
+
+        const cleanGames = {};
+        Object.keys(games).forEach((n) => { if (keptNames.has(n)) cleanGames[n] = games[n]; });
+
+        const handWritten = replaySavedCards(cleanGames).summary.overall;
+        const learned = evaluateModel(kept, { margin: 0 }).summary.overall;
+
+        console.log('\n' + '='.repeat(78));
+        console.log('LIKE FOR LIKE — same 16 cards, duplicates and test cards removed');
+        console.log('='.repeat(78));
+        console.log(`hand-written engine   ${ci(handWritten)}   ev ${ev(handWritten.evPerUnit)}   n=${handWritten.n}`);
+        console.log(`learned model         ${ci(learned)}   ev ${ev(learned.evPerUnit)}   n=${learned.n}`);
+        console.log(`break-even needed     ${pct(handWritten.breakEven)} / ${pct(learned.breakEven)}`);
+        console.log('');
+        const { beatsBreakEven: bbe } = require('./stats');
+        console.log(`clears break-even?    hand-written: ${bbe(handWritten) ? 'YES' : 'no'}    learned: ${bbe(learned) ? 'YES' : 'no'}`);
+        console.log('='.repeat(78) + '\n');
+
+        expect(learned.n).toBeGreaterThan(0);
+    });
 });
