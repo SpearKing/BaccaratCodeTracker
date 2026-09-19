@@ -24,18 +24,22 @@ const StealthModeView = ({
     highlightedCells,
     calibration,
 }) => {
-    const [viewRow, setViewRow] = useState(lastWinRow);
+    // Bounded by the last row holding anything, ties included -- not by the
+    // last DECIDED row. Using lastWinRow here meant that after a tie the
+    // counter under-reported (7 rows on the board, "H: 6" on screen) and the
+    // tie row could not be reached at all.
+    const [viewRow, setViewRow] = useState(lastPlayedRow);
 
     useEffect(() => {
-        setViewRow(lastWinRow);
-    }, [lastWinRow]);
+        setViewRow(lastPlayedRow);
+    }, [lastPlayedRow]);
 
     const handleNavUp = () => {
         setViewRow(prev => Math.max(prev - 1, 1));
     };
 
     const handleNavDown = () => {
-        setViewRow(prev => Math.min(prev + 1, lastWinRow));
+        setViewRow(prev => Math.min(prev + 1, lastPlayedRow));
     };
 
     const handleWin = (type) => {
@@ -67,7 +71,7 @@ const StealthModeView = ({
                         <svg viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"></path></svg>
                     </button>
                     <span>H: {viewRow}</span>
-                    <button onClick={handleNavDown} disabled={viewRow === lastWinRow}>
+                    <button onClick={handleNavDown} disabled={viewRow >= lastPlayedRow}>
                         <svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"></path></svg>
                     </button>
                 </div>

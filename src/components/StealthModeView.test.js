@@ -29,6 +29,10 @@ const show = (calibration) =>
         />
     );
 
+// A card whose most recent entry is a tie: 4 decided hands, 5 rows filled.
+const tiedHands = [...hands, 'T'];
+const tiedGrid = deriveGrid(tiedHands, 20);
+
 // Scoped to the prediction line: the action buttons are also labelled P/T/B.
 const line = (container) =>
     container.querySelector('.stealth-prediction-display').textContent.replace(/\s+/g, ' ').trim();
@@ -78,5 +82,40 @@ describe('StealthModeView', () => {
     it('rounds the rate to a whole number', () => {
         const { container } = show(calibration(3, 0.4267, false));
         expect(line(container)).toBe('B : 43%');
+    });
+});
+
+describe('a card whose last entry is a tie', () => {
+    const showTied = () =>
+        render(
+            <StealthModeView
+                onExit={noop}
+                scorecard={tiedGrid}
+                lastWinRow={hands.length}
+                lastPlayedRow={tiedHands.length}
+                handleCellClick={noop}
+                recordTie={noop}
+                highlightedCells={computeHighlights(tiedGrid, tiedGrid[0].length)}
+                calibration={new Map()}
+            />
+        );
+
+    it('counts the tie in the hand number', () => {
+        const { container } = showTied();
+        // 5 rows are filled, so it must not read "H: 4".
+        expect(container.querySelector('.stealth-hand-display span').textContent.trim())
+            .toBe(`H: ${tiedHands.length}`);
+    });
+
+    it('does not strand the view above the tie row', () => {
+        const { container } = showTied();
+        const down = container.querySelectorAll('.stealth-hand-display button')[1];
+        expect(down.disabled).toBe(true); // already at the last filled row
+    });
+
+    it('still predicts from the last decided hand', () => {
+        // The tie changes nothing, so the call is the same as without it.
+        const { container } = showTied();
+        expect(line(container)).toBe('B');
     });
 });

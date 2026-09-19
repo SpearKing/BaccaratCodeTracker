@@ -50,6 +50,16 @@ const ControlPanel = ({
                         </span>
                     )}
                 </div>
+                {/* Recording a tie used to mean opening the controls panel and
+                    hunting for a button beside New/Save/Stats. P and B are one
+                    tap on the grid, so T should be one tap too. */}
+                <button
+                    className="toolbar-tie-button"
+                    title="Record a tie on the next hand"
+                    onClick={(e) => { e.stopPropagation(); recordTie(); }}
+                >
+                    T
+                </button>
                 <button className="toolbar-icon-button" onClick={(e) => { e.stopPropagation(); onStealthClick(); }}>
                     <StealthIcon className="stealth-icon" />
                 </button>
