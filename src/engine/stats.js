@@ -243,3 +243,38 @@ export const summarise = (log) => {
  */
 export const beatsBreakEven = (t) =>
     t.n > 0 && t.breakEven !== null && t.interval.low !== null && t.interval.low > t.breakEven;
+
+/** Resolved bets a C-Level needs before its measured rate is worth showing. */
+export const MIN_CALIBRATION_SAMPLE = 30;
+
+/**
+ * What each C-Level has actually been worth, from the user's own log.
+ *
+ * The C-Level is a count of highlighted cells. It was presented as confidence
+ * -- "Low", "Med", "HIGH" -- but it was never measured, and when it finally was
+ * it ran backwards: over 2,500 real hands C=3 hit 53.98%, C=4 49.79% and C=5
+ * 46.80%, an ordering that replicated in both halves of a date split. The app
+ * was at its most emphatic exactly where it was least right.
+ *
+ * So no invented labels. Levels with enough data show what they have actually
+ * returned; levels without stay silent rather than implying something.
+ */
+export const confidenceCalibration = (log, minSample = MIN_CALIBRATION_SAMPLE) => {
+    const out = new Map();
+
+    summarise(log).byConfidence.forEach((t, level) => {
+        if (t.n < minSample) return;
+        out.set(level, {
+            n: t.n,
+            rate: t.interval.estimate,
+            low: t.interval.low,
+            high: t.interval.high,
+            breakEven: t.breakEven,
+            // Only flag a level as losing when the whole interval is below the
+            // bar, not merely the point estimate.
+            belowBreakEven: t.interval.high !== null && t.interval.high < t.breakEven,
+        });
+    });
+
+    return out;
+};

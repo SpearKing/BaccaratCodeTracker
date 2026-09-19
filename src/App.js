@@ -11,6 +11,7 @@ import ScorecardGrid from './components/ScorecardGrid';
 import ControlPanel from './components/ControlPanel';
 import StealthModeView from './components/StealthModeView';
 import StatsModal from './components/StatsModal';
+import { confidenceCalibration } from './engine/stats';
 import { API_URL } from './utils/constants';
 
 function App() {
@@ -68,6 +69,10 @@ function App() {
         cardNameRef.current = gameManagement.currentScorecardName;
     }, [gameManagement.currentScorecardName]);
 
+    // What each C-Level has actually been worth, measured from this player's
+    // own log rather than asserted.
+    const calibration = useMemo(() => confidenceCalibration(log), [log]);
+
     const { result: predictionResult, predictedWinType, confidenceLevel } =
         usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
 
@@ -98,6 +103,7 @@ function App() {
                     handleFullReset={handleFullReset}
                     recordTie={recordTie}
                     predictedWinType={predictedWinType} confidenceLevel={confidenceLevel}
+                    calibration={calibration}
                     {...gameManagement}
                 />
                 <ScorecardGrid
@@ -108,7 +114,7 @@ function App() {
                 />
             </div>
 
-            {isStealthMode && ( <StealthModeView onExit={() => setIsStealthMode(false)} scorecard={scorecard} lastWinRow={lastWinRow} lastPlayedRow={lastPlayedRow} handleCellClick={handleCellClick} recordTie={recordTie} highlightedCells={highlightedCells} /> )}
+            {isStealthMode && ( <StealthModeView onExit={() => setIsStealthMode(false)} scorecard={scorecard} lastWinRow={lastWinRow} lastPlayedRow={lastPlayedRow} handleCellClick={handleCellClick} recordTie={recordTie} highlightedCells={highlightedCells} calibration={calibration} /> )}
 
             {showStats && (
                 <StatsModal

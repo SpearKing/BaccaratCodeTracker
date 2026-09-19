@@ -130,3 +130,6 @@ input:checked + .slider:before { transform: translateX(22px); }
 .stats-modal-content .delete-button { background-color: var(--button-delete-bg); margin-top: 8px; }
 
 .save-warning { font-size: 0.8em; line-height: 1.35; padding: 6px 8px; margin: 4px 0 2px; border-radius: 4px; color: var(--button-reset-text); background-color: var(--button-reset-bg); }
+
+.c-level-measured { font-size: 0.8em; opacity: 0.7; }
+.confidence-losing { color: var(--button-delete-bg); }

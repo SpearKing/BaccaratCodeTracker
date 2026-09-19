@@ -14,6 +14,7 @@ import {
     baselines,
     summarise,
     beatsBreakEven,
+    confidenceCalibration,
     BANKER_BREAKEVEN,
     PLAYER_BREAKEVEN,
 } from './stats';
@@ -262,5 +263,41 @@ describe('beatsBreakEven', () => {
         const t = tally(entries);
         near(t.interval.estimate, 0.55);
         expect(beatsBreakEven(t)).toBe(true);
+    });
+});
+
+describe('confidenceCalibration', () => {
+    const at = (level, wins, losses) => [
+        ...Array.from({ length: wins }, () => ({ predicted: 'P', actual: 'P', confidence: level })),
+        ...Array.from({ length: losses }, () => ({ predicted: 'P', actual: 'B', confidence: level })),
+    ];
+
+    it('stays silent about levels with too little data', () => {
+        const c = confidenceCalibration([...at(5, 3, 2)]);
+        expect(c.has(5)).toBe(false);
+    });
+
+    it('reports what a level has actually returned', () => {
+        const c = confidenceCalibration([...at(3, 60, 40)]);
+        expect(c.get(3).n).toBe(100);
+        near(c.get(3).rate, 0.6);
+    });
+
+    it('flags a level as losing only when the whole interval is below the bar', () => {
+        // Clearly losing over a large sample.
+        const bad = confidenceCalibration([...at(5, 300, 700)]);
+        expect(bad.get(5).belowBreakEven).toBe(true);
+
+        // Losing on the face of it, but 45% over 40 hands is well inside the
+        // range chance produces, so it must not be flagged.
+        const unsure = confidenceCalibration([...at(5, 18, 22)]);
+        near(unsure.get(5).rate, 0.45);
+        expect(unsure.get(5).belowBreakEven).toBe(false);
+    });
+
+    it('can show a higher level performing worse than a lower one', () => {
+        // The ordering measured in the real data, which the old labels inverted.
+        const c = confidenceCalibration([...at(3, 54, 46), ...at(5, 47, 53)]);
+        expect(c.get(3).rate).toBeGreaterThan(c.get(5).rate);
     });
 });

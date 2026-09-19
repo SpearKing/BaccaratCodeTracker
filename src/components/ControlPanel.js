@@ -20,7 +20,7 @@ const ControlPanel = ({
     handleFullReset,
     recordTie,
     saveState,
-    predictedWinType, confidenceLevel,
+    predictedWinType, confidenceLevel, calibration,
 }) => {
     const gameNamePresets = ["Boomtown", "L'auberge", "Treasure Chest", "Ceaser's NO."];
 
@@ -32,6 +32,17 @@ const ControlPanel = ({
                         <>
                             Prediction: <span className={predictedWinType === 'P' ? 'p-color' : (predictedWinType === 'B' ? 'b-color' : '')}>{predictedWinType || 'N/A'}</span>
                             &nbsp;&nbsp;&nbsp; C-Level: <span>{confidenceLevel}</span>
+                            {(() => {
+                                // What this level has actually returned, once
+                                // there are enough hands to mean anything.
+                                const m = calibration?.get(confidenceLevel);
+                                if (!m) return null;
+                                return (
+                                    <span className={`c-level-measured${m.belowBreakEven ? ' confidence-losing' : ''}`}>
+                                        &nbsp;· {(m.rate * 100).toFixed(0)}% over {m.n}
+                                    </span>
+                                );
+                            })()}
                         </>
                     ) : (
                         <span>
