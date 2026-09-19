@@ -184,13 +184,14 @@ export const calculateSingleRow = (
 /**
  * Builds a complete grid from an ordered list of hands.
  *
- * `outcomes` is an array of 'P' | 'B', oldest first. Hand i lands on row i + 1.
+ * `outcomes` is an array of 'P' | 'B' | 'T', oldest first. Hand i lands on row
+ * i + 1. `onStep`, if given, is called just before each hand is applied.
  *
  * This is the authoritative way to produce a grid: because every row is derived
  * from the row above it, the only way to keep a grid self-consistent after an
  * edit is to replay it from the outcome list.
  */
-export const deriveGrid = (outcomes, numRows) => {
+export const deriveGrid = (outcomes, numRows, onStep) => {
     const rows = numRows ?? Math.max(NUM_INITIAL_ROWS, outcomes.length + 1);
     let scorecard = createInitialScorecard(rows);
 
@@ -216,6 +217,13 @@ export const deriveGrid = (outcomes, numRows) => {
                 break;
             }
         }
+
+        // Fires with the grid as it stands BEFORE this hand is applied, which
+        // is what a backtest needs: the state the engine would have been
+        // looking at when it made its call. Having the replay ride the real
+        // traversal is deliberate -- a separate copy of this loop is exactly
+        // how the stealth and analytics copies drifted.
+        if (onStep) onStep({ grid: scorecard, rowIdx, hand, prevHand: prev, parentRowIdx });
 
         scorecard = calculateSingleRow(scorecard, rowIdx, hand, prev, parentRowIdx);
     }

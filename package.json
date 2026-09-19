@@ -17,7 +17,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "fixtures:grid": "node scripts/generate-grid-fixtures.js src/engine/__fixtures__/golden-master.json"
+    "fixtures:grid": "node scripts/generate-grid-fixtures.js src/engine/__fixtures__/golden-master.json",
+    "backtest": "node scripts/backtest.js"
   },
   "eslintConfig": {
     "extends": [
