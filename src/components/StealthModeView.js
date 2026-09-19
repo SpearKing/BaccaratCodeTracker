@@ -1,68 +1,7 @@
 // src/components/StealthModeView.js
 import React, { useState, useEffect } from 'react';
 import StealthIcon from './StealthIcon';
-
-// This is a simplified, standalone version of the prediction logic
-// designed to get a prediction for any given historical row.
-const getPredictionForStealthRow = (scorecard, highlightedCells, rowNumber) => {
-    if (rowNumber < 1 || !scorecard[rowNumber]) {
-        return { prediction: null, confidence: 0 };
-    }
-
-    const currentRow = scorecard[rowNumber];
-    let lastHighlightedCol = -1;
-    let patternName = null;
-
-    for (let colIdx = currentRow.length - 1; colIdx >= 3; colIdx--) {
-        const cellKey = `${rowNumber}-${colIdx}`;
-        if (highlightedCells.has(cellKey)) {
-            lastHighlightedCol = colIdx;
-            patternName = highlightedCells.get(cellKey);
-            break;
-        }
-    }
-
-    if (lastHighlightedCol === -1) {
-        return { prediction: null, confidence: 0 };
-    }
-    
-    let n1_value = null;
-    const n2_value = scorecard[rowNumber]?.[lastHighlightedCol]?.value;
-
-    for (let row = rowNumber - 1; row >= 1; row--) {
-        const cellKey = `${row}-${lastHighlightedCol}`;
-        if (highlightedCells.get(cellKey) === patternName) {
-            n1_value = scorecard[row]?.[lastHighlightedCol]?.value;
-            break;
-        }
-    }
-
-    let isNextRepeater = null;
-    let isNextOpposite = null;
-
-    if (n1_value !== null && n2_value !== null) {
-        if (n2_value - 1 === n1_value) isNextRepeater = true;
-        else if (n2_value + 1 === n1_value) isNextOpposite = true;
-    }
-
-    const lastWinType = scorecard[rowNumber][0].value === 'O' ? 'P' : 'B';
-    let prediction = null;
-
-    if (lastWinType === 'P') {
-        prediction = isNextRepeater ? 'P' : (isNextOpposite ? 'B' : null);
-    } else if (lastWinType === 'B') {
-        prediction = isNextRepeater ? 'B' : (isNextOpposite ? 'P' : null);
-    }
-    
-    let confidence = 0;
-    for (let col = 3; col < currentRow.length; col++) {
-        if (highlightedCells.has(`${rowNumber}-${col}`)) {
-            confidence++;
-        }
-    }
-
-    return { prediction, confidence };
-};
+import { predictNextHand } from '../engine/predict';
 
 // NEW: Helper function to format the C-Level display
 const formatConfidence = (level) => {
@@ -81,7 +20,9 @@ const StealthModeView = ({
     onExit,
     scorecard,
     lastWinRow,
+    lastPlayedRow,
     handleCellClick,
+    recordTie,
     highlightedCells,
 }) => {
     const [viewRow, setViewRow] = useState(lastWinRow);
@@ -99,7 +40,8 @@ const StealthModeView = ({
     };
 
     const handleWin = (type) => {
-        const nextRow = lastWinRow + 1;
+        // Land below whatever was recorded last, ties included.
+        const nextRow = lastPlayedRow + 1;
         if (scorecard[nextRow]) {
             const colIdx = type === 'P' ? 0 : 1;
             handleCellClick(nextRow, colIdx);
@@ -108,7 +50,10 @@ const StealthModeView = ({
         }
     };
 
-    const { prediction, confidence } = getPredictionForStealthRow(scorecard, highlightedCells, viewRow);
+    // Shares engine/predict.js with the main view. Before this, stealth mode
+    // had its own copy that left out the Rule of Three and so disagreed with
+    // the main screen on roughly 37% of hands.
+    const { prediction, confidence } = predictNextHand(scorecard, highlightedCells, viewRow);
     const formattedConfidence = formatConfidence(confidence);
 
     return (
@@ -136,6 +81,7 @@ const StealthModeView = ({
 
             <div className="stealth-action-buttons">
                 <button className="p-win" onClick={() => handleWin('P')}>P</button>
+                <button className="t-win" onClick={recordTie}>T</button>
                 <button className="b-win" onClick={() => handleWin('B')}>B</button>
             </div>
         </div>

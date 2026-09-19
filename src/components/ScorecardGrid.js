@@ -36,8 +36,8 @@ const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highl
                 <div className="grid-cell header header-pound sticky-col">#</div>
                 <div className="grid-cell header">P</div>
                 <div className="grid-cell header">B</div>
-                {/* Conditionally render 'S' column header */}
-                {showAnalytics && <div className="grid-cell header">S</div>}
+                {/* S is always visible: it carries the tie marker. */}
+                <div className="grid-cell header">S</div>
                 
                 {showAnalytics && Array.from({ length: maxRenderableColumns - 3 }).map((_, colIdx) => (
                     <div key={`header-${colIdx + 1}`} className="grid-cell header">{colIdx + 1}</div>
@@ -68,11 +68,7 @@ const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highl
                             const isNumber = colIdx >= 3;
                             const isClickable = (isP || isB);
 
-                            // Conditionally hide the 'S' column data cell
-                            if (colIdx === 2 && !showAnalytics) {
-                                return null;
-                            }
-                            
+
                             if (!showAnalytics && isNumber) {
                                 return null;
                             }

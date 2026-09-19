@@ -21,6 +21,12 @@ import {
     X_MARK_THRESHOLD,
 } from '../utils/constants';
 
+/** Marker for a tied hand, stored in the S column. */
+export const TIE = 'T';
+
+/** True for hands that settle as a result, i.e. everything except a tie. */
+export const isDecided = (hand) => hand === 'P' || hand === 'B';
+
 export const createEmptyRow = (numColumns = NUM_INITIAL_COLUMNS) => {
     const row = [];
     row.push({ type: 'P', value: '', editable: true, displayValue: '' });
@@ -81,7 +87,13 @@ const placeInNextFreeColumn = (scorecard, rowIdx, value) => {
  * 'X' into the row *below* when a column dies, which is why callers must
  * replay rows in order.
  */
-export const calculateSingleRow = (currentScorecard, rowIdx, winType, prevWinType) => {
+export const calculateSingleRow = (
+    currentScorecard,
+    rowIdx,
+    winType,
+    prevWinType,
+    parentRowIdx = rowIdx - 1
+) => {
     if (rowIdx === 0) return currentScorecard;
 
     let newScorecard = JSON.parse(JSON.stringify(currentScorecard));
@@ -91,6 +103,17 @@ export const calculateSingleRow = (currentScorecard, rowIdx, winType, prevWinTyp
     currentRow[0] = { ...currentRow[0], value: '', displayValue: '' };
     currentRow[1] = { ...currentRow[1], value: '', displayValue: '' };
     currentRow[2] = { ...currentRow[2], displayValue: '' };
+
+    // A tie occupies a row so that hand numbers stay truthful, but it is not a
+    // result: it does not count as a repeat or a switch, and it leaves the
+    // running counts alone. The next real hand reads past it, via parentRowIdx.
+    if (winType === TIE) {
+        currentRow[2] = { ...currentRow[2], displayValue: TIE };
+        for (let i = 3; i < currentRow.length; i++) {
+            currentRow[i] = { ...currentRow[i], value: null, displayValue: '' };
+        }
+        return newScorecard;
+    }
 
     if (winType === 'P') {
         currentRow[0] = { ...currentRow[0], value: 'O', displayValue: 'O' };
@@ -111,7 +134,7 @@ export const calculateSingleRow = (currentScorecard, rowIdx, winType, prevWinTyp
 
     let previousColHasValueInSequence = true;
     for (let col = 3; col < currentRow.length; col++) {
-        const cellAbove = rowIdx > 0 ? newScorecard[rowIdx - 1][col] : null;
+        const cellAbove = parentRowIdx > 0 ? newScorecard[parentRowIdx][col] : null;
         currentRow[col] = { ...currentRow[col], value: null, displayValue: '' };
 
         // Once a column has died it stays dead for the rest of the grid.
@@ -189,10 +212,56 @@ export const deriveGrid = (outcomes, numRows) => {
     for (let i = 0; i < outcomes.length; i++) {
         const rowIdx = i + 1;
         if (rowIdx >= scorecard.length) break;
-        scorecard = calculateSingleRow(scorecard, rowIdx, outcomes[i], i > 0 ? outcomes[i - 1] : null);
+
+        // A null entry is a row that was never played. Skip it rather than
+        // clearing it, so it keeps any X handed down from the row above --
+        // which is what the app does, since it only recalculates rows you click.
+        const hand = outcomes[i];
+        if (!hand) continue;
+
+        // The previous result, and the row the running counts continue from,
+        // are both the nearest DECIDED row above: nulls and ties are stepped
+        // over so a tie leaves the arithmetic untouched.
+        let prev = null;
+        let parentRowIdx = 0;
+        for (let j = i - 1; j >= 0; j--) {
+            if (isDecided(outcomes[j])) {
+                prev = outcomes[j];
+                parentRowIdx = j + 1;
+                break;
+            }
+        }
+
+        scorecard = calculateSingleRow(scorecard, rowIdx, hand, prev, parentRowIdx);
     }
 
     return scorecard;
+};
+
+/**
+ * Reads every row back out of a grid, preserving gaps as nulls and trimming
+ * trailing blank rows. `hands[i]` is the result on row `i + 1`.
+ *
+ * Unlike `outcomesFromGrid` this does not stop at the first gap, so it can
+ * faithfully round-trip a grid where rows were filled out of order.
+ */
+export const handsFromGrid = (scorecard) => {
+    const hands = [];
+    let lastPlayed = 0;
+
+    for (let r = 1; r < scorecard.length; r++) {
+        const row = scorecard[r];
+        if (!row) break;
+        const winner =
+            row[0].value === 'O' ? 'P'
+            : row[1].value === 'O' ? 'B'
+            : row[2].displayValue === TIE ? TIE
+            : null;
+        hands.push(winner);
+        if (winner) lastPlayed = r;
+    }
+
+    return hands.slice(0, lastPlayed);
 };
 
 /**

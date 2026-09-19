@@ -25,7 +25,8 @@ function App() {
 
     const {
         scorecard, setScorecard, lastWinType, setLastWinType, lastWinRow,
-        setLastWinRow, handleCellClick, resetScorecard, maxRenderableColumns,
+        setLastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow,
+        recordTie, maxRenderableColumns,
     } = useScorecardLogic(stats, setStats);
 
     const { isDarkMode, setIsDarkMode } = useTheme();
@@ -65,10 +66,6 @@ function App() {
         }
     }, [gameManagement]);
 
-    const handleDeleteRow = (rowIdx) => {
-        setScorecard(prevScorecard => prevScorecard.filter((_, index) => index !== rowIdx));
-    };
-
     return (
         <div className={`app-container ${isStealthMode ? 'stealth-active' : ''}`}>
             <div className="main-view">
@@ -79,6 +76,7 @@ function App() {
                     isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
                     showAnalytics={showAnalytics} setShowAnalytics={setShowAnalytics}
                     handleFullReset={handleFullReset}
+                    recordTie={recordTie}
                     predictedWinType={predictedWinType} confidenceLevel={confidenceLevel}
                     {...gameManagement}
                 />
@@ -86,11 +84,11 @@ function App() {
                     scorecard={scorecard} handleCellClick={handleCellClick}
                     maxRenderableColumns={maxRenderableColumns}
                     highlightedCells={highlightedCells} showAnalytics={showAnalytics}
-                    handleDeleteRow={handleDeleteRow}
+                    handleDeleteRow={deleteRow}
                 />
             </div>
 
-            {isStealthMode && ( <StealthModeView onExit={() => setIsStealthMode(false)} scorecard={scorecard} lastWinRow={lastWinRow} handleCellClick={handleCellClick} highlightedCells={highlightedCells} /> )}
+            {isStealthMode && ( <StealthModeView onExit={() => setIsStealthMode(false)} scorecard={scorecard} lastWinRow={lastWinRow} lastPlayedRow={lastPlayedRow} handleCellClick={handleCellClick} recordTie={recordTie} highlightedCells={highlightedCells} /> )}
             
             {showStats && ( <StatsModal stats={stats} onClose={() => setShowStats(false)} /> )}
         </div>

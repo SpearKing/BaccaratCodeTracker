@@ -15,8 +15,17 @@ fixtures make that arithmetic pinned down and checkable.
 | File | What it is |
 | --- | --- |
 | `grid.js` | The grid arithmetic, extracted from `useScorecardLogic.js` |
+| `predict.js` | The prediction rules, shared by the main view and stealth mode |
+| `analytics.js` | Pattern detection over the number columns |
 | `grid.test.js` | Golden-master tests plus documented behaviour |
+| `predict.test.js` | Characterisation tests for the prediction rules |
 | `__fixtures__/golden-master.json` | 49 frozen grids, 61,136 cells |
+
+Each of these had a second copy living somewhere else before it moved here, and
+in both cases the copy had gone stale: stealth mode's prediction logic was
+missing the Rule of Three, and a test helper's copy of the analytics matcher
+missed the tie handling. If you find yourself about to duplicate one of these,
+don't.
 
 ## How the golden master works
 
@@ -45,6 +54,25 @@ To change the arithmetic on purpose:
 3. Regenerate with `npm run fixtures:grid` — but note the generator holds a copy
    of the *original* logic, so if you are genuinely redefining the arithmetic you
    must update that copy too, and say so in the commit.
+
+## Ties
+
+A tie takes a row of its own, marked `T` in the S column, so hand numbers stay
+truthful and shoe depth stays recoverable. It is not a result:
+
+- it does not count as a repeat or a switch, so it never changes an R/O marker;
+- it carries no counts of its own, and the next hand continues from the row
+  above it (`calculateSingleRow` takes a `parentRowIdx` for exactly this);
+- `computeHighlights` leaves tie rows out of the column entirely, so a tie
+  cannot split a pattern;
+- `predictNextHand` anchors to the most recent decided row, so a tie cannot
+  break the Rule of Three or shift a prediction.
+
+The net effect is that a card with ties produces numerically identical rows to
+the same hands with the ties removed. There is a test for precisely that.
+
+Because a tie is stored in a cell that already existed, old saved scorecards
+load unchanged and need no migration.
 
 ## Verified properties
 

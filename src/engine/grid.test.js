@@ -17,7 +17,9 @@ import {
     calculateSingleRow,
     createInitialScorecard,
     outcomesFromGrid,
+    handsFromGrid,
     findNextAvailableCol,
+    TIE,
 } from './grid';
 
 // Mirrors the encoding used by the fixture generator: `value` is recoverable
@@ -145,6 +147,87 @@ describe('documented grid behaviour', () => {
     });
 });
 
+describe('handsFromGrid', () => {
+    it('round-trips a contiguous grid', () => {
+        const hands = ['P', 'B', 'B', 'P', 'B', 'P', 'P'];
+        expect(handsFromGrid(deriveGrid(hands, 20))).toEqual(hands);
+    });
+
+    it('preserves gaps as nulls instead of stopping at them', () => {
+        // A grid where row 3 was never played: the user clicked rows 1, 2 and 4.
+        const withGap = ['P', 'B', null, 'P'];
+        const grid = deriveGrid(withGap, 20);
+        expect(handsFromGrid(grid)).toEqual(withGap);
+    });
+
+    it('trims trailing blank rows', () => {
+        const grid = deriveGrid(['P', 'B'], 50);
+        expect(handsFromGrid(grid)).toHaveLength(2);
+    });
+});
+
+describe('deleting a hand', () => {
+    // What the hook does: drop the hand, replay what is left.
+    const deleteHand = (grid, rowIdx) => {
+        const hands = handsFromGrid(grid);
+        const remaining = hands.filter((_, i) => i !== rowIdx - 1);
+        return deriveGrid(remaining, grid.length - 1);
+    };
+
+    // What the old App.js did: splice the row out of the array and stop.
+    const spliceRow = (grid, rowIdx) => grid.filter((_, i) => i !== rowIdx);
+
+    const hands = ['P', 'P', 'B', 'P', 'B', 'B', 'B', 'P', 'P', 'B'];
+
+    it('leaves the grid consistent with the hands that remain', () => {
+        const grid = deriveGrid(hands, 30);
+        const after = deleteHand(grid, 4);
+
+        const expectedHands = hands.filter((_, i) => i !== 3);
+        expect(handsFromGrid(after)).toEqual(expectedHands);
+
+        const rebuilt = deriveGrid(expectedHands, 30);
+        expect(after.map((r) => r.map((c) => c.displayValue)))
+            .toEqual(rebuilt.map((r) => r.map((c) => c.displayValue)));
+    });
+
+    it('keeps the grid the same height', () => {
+        const grid = deriveGrid(hands, 30);
+        expect(deleteHand(grid, 4)).toHaveLength(grid.length);
+        // The old implementation lost a row on every delete.
+        expect(spliceRow(grid, 4)).toHaveLength(grid.length - 1);
+    });
+
+    it('REGRESSION: the old splice left every row below doing wrong arithmetic', () => {
+        const grid = deriveGrid(hands, 30);
+        const spliced = spliceRow(grid, 4);
+
+        // Read the hands back out of the spliced grid and replay them. If the
+        // splice had been correct, the replay would agree with it.
+        const replayed = deriveGrid(handsFromGrid(spliced), spliced.length - 1);
+
+        const splicedRows = spliced.slice(1, 10).map((r) => r.map((c) => c.displayValue).join(','));
+        const replayedRows = replayed.slice(1, 10).map((r) => r.map((c) => c.displayValue).join(','));
+
+        expect(splicedRows).not.toEqual(replayedRows);
+    });
+
+    it('handles deleting the only hand', () => {
+        const grid = deriveGrid(['P'], 20);
+        const after = deleteHand(grid, 1);
+        expect(handsFromGrid(after)).toEqual([]);
+        expect(after[1][0].displayValue).toBe('');
+        expect(after[1][1].displayValue).toBe('');
+    });
+
+    it('handles deleting the last hand', () => {
+        const grid = deriveGrid(hands, 30);
+        const after = deleteHand(grid, hands.length);
+        expect(handsFromGrid(after)).toEqual(hands.slice(0, -1));
+    });
+
+});
+
 describe('findNextAvailableCol', () => {
     it('finds the first unused number column', () => {
         const row = createInitialScorecard(1)[0];
@@ -162,3 +245,66 @@ describe('findNextAvailableCol', () => {
     });
 });
 
+describe('ties', () => {
+    it('takes a row and marks it T without touching the counts', () => {
+        const withTie = deriveGrid(['P', 'B', TIE, 'P'], 20);
+        const without = deriveGrid(['P', 'B', 'P'], 20);
+
+        expect(withTie[3][2].displayValue).toBe('T');
+        expect(withTie[3][0].displayValue).toBe('');
+        expect(withTie[3][1].displayValue).toBe('');
+        // The tie row carries no numbers of its own.
+        for (let c = 3; c < withTie[3].length; c++) {
+            expect(withTie[3][c].displayValue).toBe('');
+        }
+
+        // The hand after the tie lands on the numbers it would have had if the
+        // tie had never happened.
+        expect(withTie[4].slice(3).map((c) => c.displayValue))
+            .toEqual(without[3].slice(3).map((c) => c.displayValue));
+    });
+
+    it('is not counted as a repeat or a switch', () => {
+        // P, tie, P is still a repeat: the tie does not sit between them.
+        const grid = deriveGrid(['P', TIE, 'P'], 20);
+        expect(grid[3][2].displayValue).toBe('R');
+
+        const chop = deriveGrid(['P', TIE, 'B'], 20);
+        expect(chop[3][2].displayValue).toBe('O');
+    });
+
+    it('leaves the whole grid identical to the same hands without ties', () => {
+        const hands = ['P', 'P', 'B', 'P', 'B', 'B', 'B', 'P', 'P', 'B', 'P'];
+        const withTies = ['P', 'P', TIE, 'B', 'P', 'B', TIE, 'B', 'B', 'P', TIE, 'P', 'B', 'P'];
+
+        const a = deriveGrid(hands, 40);
+        const b = deriveGrid(withTies, 40);
+
+        const numbersOf = (grid) =>
+            grid
+                .slice(1)
+                .filter((r) => r[2].displayValue !== TIE)
+                .map((r) => r.slice(3).map((c) => c.displayValue).join(','))
+                .filter((r) => r.replace(/,/g, '') !== '');
+
+        expect(numbersOf(b)).toEqual(numbersOf(a));
+    });
+
+    it('round-trips through handsFromGrid', () => {
+        const hands = ['P', TIE, 'B', 'B', TIE, 'P'];
+        expect(handsFromGrid(deriveGrid(hands, 20))).toEqual(hands);
+    });
+
+    it('survives several ties in a row', () => {
+        const grid = deriveGrid(['P', TIE, TIE, TIE, 'P'], 20);
+        expect(grid[5][2].displayValue).toBe('R');
+        expect(handsFromGrid(grid)).toEqual(['P', TIE, TIE, TIE, 'P']);
+    });
+
+    it('handles a tie as the very first hand', () => {
+        const grid = deriveGrid([TIE, 'P'], 20);
+        expect(grid[1][2].displayValue).toBe('T');
+        expect(grid[2][2].displayValue).toBe('O');
+        expect(handsFromGrid(grid)).toEqual([TIE, 'P']);
+    });
+});

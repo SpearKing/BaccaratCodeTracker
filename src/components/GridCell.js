@@ -9,6 +9,7 @@ const GridCell = ({ cell, rowIdx, colIdx, isP, isB, isS, isNumber, isClickable, 
     if (isNumber) cellClassName += ' number-column';
     if (isClickable) cellClassName += ' clickable-cell';
     if (cell.displayValue === 'X') cellClassName += ' x-cell';
+    if (isS && cell.displayValue === 'T') cellClassName += ' tie-cell';
 
     const patternName = highlightedCells.get(`${rowIdx}-${colIdx}`);
     if (patternName) {
@@ -21,8 +22,9 @@ const GridCell = ({ cell, rowIdx, colIdx, isP, isB, isS, isNumber, isClickable, 
     const cellStyle = {
         color: isP && cell.value === 'O' ? 'var(--p-color)' :
                (isB && cell.value === 'O' ? 'var(--b-color)' :
+               (isS && cell.displayValue === 'T' ? 'var(--t-color)' :
                (isS && (cell.displayValue === 'R' || cell.displayValue === 'O') ? 'var(--s-color)' :
-               (cell.displayValue === 'X' ? 'var(--x-color)' : 'var(--text-color)'))),
+               (cell.displayValue === 'X' ? 'var(--x-color)' : 'var(--text-color)')))),
         fontWeight: (isP || isB) && cell.value === 'O' ? 'bold' : 'normal',
     };
 

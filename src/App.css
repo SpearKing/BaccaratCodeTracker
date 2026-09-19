@@ -3,8 +3,8 @@
 @keyframes fadeIn { to { opacity: 1; } }
 @keyframes slideDown { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-:root { --bg-color: #f0f0f0; --text-color: #333; --header-bg: #e0e0e0; --border-color: #ccc; --grid-cell-bg: #fff; --p-color: red; --b-color: blue; --s-color: purple; --x-color: gray; --button-save-bg: #28a745; --button-load-bg: #007bff; --button-delete-bg: #dc3545; --button-reset-bg: #ffc107; --button-reset-text: #212529; --button-stats-bg: #17a2b8; --prediction-bg: var(--header-bg); --prediction-text: var(--text-color); --highlight-1010-bg: #e6ffed; --highlight-1010-border: #28a745; --highlight-121-bg: #e0f2ff; --highlight-121-border: #007bff; --highlight-232-bg: #fff3e0; --highlight-232-border: #ff9800; --highlight-343-bg: #f3e5f5; --highlight-343-border: #9c27b0; }
-.dark-mode { --bg-color: #222; --text-color: #e0e0e0; --header-bg: #333; --border-color: #555; --grid-cell-bg: #333; --p-color: var(--text-color); --b-color: var(--text-color); --s-color: #b19cd9; --x-color: #888; --button-save-bg: #4caf50; --button-load-bg: #2196f3; --button-delete-bg: #f44336; --button-reset-bg: #ffc107; --button-reset-text: #212529; --button-stats-bg: #17a2b8; --prediction-bg: var(--header-bg); --prediction-text: var(--text-color); --highlight-1010-bg: #3c5740; --highlight-1010-border: #4caf50; --highlight-121-bg: #223a5c; --highlight-121-border: #2196f3; --highlight-232-bg: #5c3c22; --highlight-232-border: #e69d00; --highlight-343-bg: #522d57; --highlight-343-border: #ba68c8; }
+:root { --bg-color: #f0f0f0; --text-color: #333; --header-bg: #e0e0e0; --border-color: #ccc; --grid-cell-bg: #fff; --p-color: red; --b-color: blue; --s-color: purple; --x-color: gray; --t-color: #2e7d32; --button-tie-bg: #6c757d; --button-save-bg: #28a745; --button-load-bg: #007bff; --button-delete-bg: #dc3545; --button-reset-bg: #ffc107; --button-reset-text: #212529; --button-stats-bg: #17a2b8; --prediction-bg: var(--header-bg); --prediction-text: var(--text-color); --highlight-1010-bg: #e6ffed; --highlight-1010-border: #28a745; --highlight-121-bg: #e0f2ff; --highlight-121-border: #007bff; --highlight-232-bg: #fff3e0; --highlight-232-border: #ff9800; --highlight-343-bg: #f3e5f5; --highlight-343-border: #9c27b0; }
+.dark-mode { --bg-color: #222; --text-color: #e0e0e0; --header-bg: #333; --border-color: #555; --grid-cell-bg: #333; --p-color: var(--text-color); --b-color: var(--text-color); --s-color: #b19cd9; --x-color: #888; --t-color: #66bb6a; --button-tie-bg: #6c757d; --button-save-bg: #4caf50; --button-load-bg: #2196f3; --button-delete-bg: #f44336; --button-reset-bg: #ffc107; --button-reset-text: #212529; --button-stats-bg: #17a2b8; --prediction-bg: var(--header-bg); --prediction-text: var(--text-color); --highlight-1010-bg: #3c5740; --highlight-1010-border: #4caf50; --highlight-121-bg: #223a5c; --highlight-121-border: #2196f3; --highlight-232-bg: #5c3c22; --highlight-232-border: #e69d00; --highlight-343-bg: #522d57; --highlight-343-border: #ba68c8; }
 body { margin: 0; background-color: var(--bg-color); color: var(--text-color); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; transition: background-color 0.3s, color 0.3s; }
 .app-container { min-height: 100vh; width: 100%; box-sizing: border-box; }
 .main-view { display: flex; flex-direction: column; align-items: center; padding: 10px; transition: opacity 0.5s ease; }
@@ -35,9 +35,10 @@ input:focus + .slider { box-shadow: 0 0 1px #2196F3; }
 input:checked + .slider:before { transform: translateX(22px); }
 .slider.round { border-radius: 28px; }
 .slider.round:before { border-radius: 50%; }
-.reset-button, .save-button, .load-button, .delete-button, .stats-button, .quick-save-button { color: white; padding: 10px 15px; font-size: 1em; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease; width: 100%; box-sizing: border-box; text-align: center; }
-.reset-button:hover, .save-button:hover, .load-button:hover, .delete-button:hover, .stats-button:hover, .quick-save-button:hover { filter: brightness(85%); }
+.reset-button, .save-button, .load-button, .delete-button, .stats-button, .quick-save-button, .tie-button { color: white; padding: 10px 15px; font-size: 1em; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease; width: 100%; box-sizing: border-box; text-align: center; }
+.reset-button:hover, .save-button:hover, .load-button:hover, .delete-button:hover, .stats-button:hover, .quick-save-button:hover, .tie-button:hover { filter: brightness(85%); }
 .stats-button, .quick-save-button { background-color: var(--button-stats-bg); }
+.tie-button { background-color: var(--button-tie-bg); }
 .reset-button { background-color: var(--button-reset-bg); color: var(--button-reset-text); font-weight: bold; }
 .save-button { background-color: var(--button-save-bg); margin-top: 10px; }
 .delete-button { background-color: var(--button-delete-bg); margin-top: -5px; }
@@ -60,6 +61,7 @@ input:checked + .slider:before { transform: translateX(22px); }
 .grid-cell.p-column { color: var(--p-color); }
 .grid-cell.b-column { color: var(--b-color); }
 .grid-cell.s-column { color: var(--s-color); }
+.grid-cell.tie-cell { color: var(--t-color); font-weight: bold; }
 .grid-cell.x-cell { color: var(--x-color); font-weight: bold; }
 .clickable-cell { cursor: pointer; }
 .clickable-cell:hover { background-color: var(--header-bg); }
@@ -82,6 +84,7 @@ input:checked + .slider:before { transform: translateX(22px); }
 .stealth-action-buttons button:hover { opacity: 1; background-color: rgba(255, 255, 255, 0.1); }
 .stealth-action-buttons button.p-win { border-color: var(--p-color); color: var(--p-color); }
 .stealth-action-buttons button.b-win { border-color: var(--b-color); color: var(--b-color); }
+.stealth-action-buttons button.t-win { border-color: var(--t-color); color: var(--t-color); flex-grow: 0.5; }
 .stats-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 200; animation: fadeIn 0.3s ease; }
 .stats-modal-content { background-color: var(--bg-color); padding: 20px; border-radius: 8px; width: 90%; max-width: 500px; position: relative; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
 .stats-close-button { position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 2em; line-height: 1; color: var(--text-color); cursor: pointer; }

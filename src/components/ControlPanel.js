@@ -18,6 +18,7 @@ const ControlPanel = ({
     handleLoadSelectedGame,
     handleDeleteSelectedGame,
     handleFullReset,
+    recordTie,
     predictedWinType, confidenceLevel,
 }) => {
     const gameNamePresets = ["Boomtown", "L'auberge", "Treasure Chest", "Ceaser's NO."];
@@ -51,6 +52,7 @@ const ControlPanel = ({
                     <button onClick={handleFullReset} className="reset-button">New</button>
                     <button onClick={handleQuickSave} className="quick-save-button">Save</button>
                     <button onClick={onStatsClick} className="stats-button">Stats</button>
+                    <button onClick={recordTie} className="tie-button" title="Record a tie on the next hand">Tie</button>
                 </div>
                 <hr className="divider" />
                 <div className="toggle-switch-container">
