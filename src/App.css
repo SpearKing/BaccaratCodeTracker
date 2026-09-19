@@ -97,24 +97,32 @@ input:checked + .slider:before { transform: translateX(22px); }
 .scorecard-grid.analytics-off {
     display: flex;
     flex-direction: column;
-    /* width: 100%; */
-    width: 25%;
+    /* Sized from its own columns, not a fraction of the screen. A fixed 25%
+       came to 91px on a 428px phone while the four columns needed 145px: the
+       row overflowed, the sticky # column covered P, and S fell off the right
+       edge entirely. */
+    width: max-content;
+    max-width: 100%;
+    margin: 0 auto;
 }
 
 .scorecard-grid.analytics-off .grid-row {
-    justify-content: center;
+    justify-content: flex-start;
 }
 
 .scorecard-grid.analytics-off .grid-cell {
-    flex-grow: 1;
+    flex-grow: 0;
+    flex-shrink: 0;
     font-size: 1em;
-    min-width: 30px;
-    height: 30px;
+    width: 44px;
+    min-width: 44px;
+    height: 34px;
 }
 
 .scorecard-grid.analytics-off .grid-cell.header-pound,
 .scorecard-grid.analytics-off .grid-cell.row-number {
-    flex-grow: 0.5; /* # column not as wide */
+    width: 40px;
+    min-width: 40px; /* # column not as wide */
 }
 
 /* --- Stats panel ------------------------------------------------------- */
@@ -136,3 +144,11 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 .toolbar-tie-button { background: transparent; border: 1px solid var(--t-color); color: var(--t-color); font-weight: bold; font-size: 0.95em; line-height: 1; padding: 4px 10px; margin-right: 8px; border-radius: 5px; cursor: pointer; }
 .toolbar-tie-button:hover { background-color: rgba(127, 127, 127, 0.15); }
+
+/* Phone layout. This must come after the .analytics-off rules above: the
+   selectors have equal specificity, so whichever is written last wins. */
+@media (max-width: 768px) {
+    .scorecard-grid.analytics-off .grid-cell { height: 44px; }
+    .scorecard-grid.analytics-off .grid-cell.p-column,
+    .scorecard-grid.analytics-off .grid-cell.b-column { width: 56px; min-width: 56px; }
+}
