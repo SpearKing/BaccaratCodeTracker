@@ -2,11 +2,23 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { NUM_INITIAL_COLUMNS } from '../utils/constants';
 import { createInitialScorecard, calculateSingleRow, deriveGrid, handsFromGrid, TIE } from '../engine/grid';
-import { usePrediction } from './usePrediction';
-import { useAnalytics } from './useAnalytics';
 import { makeEntry } from '../engine/decisionLog';
 
-export const useScorecardLogic = (onDecision) => {
+/**
+ * Grid state and the actions that change it.
+ *
+ * This hook deliberately does NOT compute the prediction or the analytics
+ * highlights. It used to, via its own useAnalytics instance -- and because that
+ * instance held its own copy of the analytics toggle, flipping the switch never
+ * reached it. The screen would show a pattern prediction while the log quietly
+ * recorded a Rule-of-Three one, until the next page reload. Same failure as the
+ * stealth-mode copy: duplicated state, silently diverging.
+ *
+ * `getPrediction` is supplied by the caller, which owns the single analytics
+ * instance. It is read at the moment a hand is recorded, so the log stores what
+ * was genuinely on screen beforehand.
+ */
+export const useScorecardLogic = (onDecision, getPrediction) => {
     const [scorecard, setScorecard] = useState(createInitialScorecard);
     const [lastWinType, setLastWinType] = useState(null);
     const [lastWinRow, setLastWinRow] = useState(-1);
@@ -20,10 +32,6 @@ export const useScorecardLogic = (onDecision) => {
     // move it, but the next hand still has to land below the tie.
     const lastPlayedRow = useMemo(() => handsFromGrid(scorecard).length, [scorecard]);
 
-    const { highlightedCells } = useAnalytics(scorecard, maxRenderableColumns);
-    // Captured at the moment a hand is recorded, so the log stores what was on
-    // screen BEFORE the outcome was known.
-    const prediction = usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
 
     /**
      * Records a decision, but only for forward play.
@@ -36,11 +44,11 @@ export const useScorecardLogic = (onDecision) => {
         if (!onDecision) return;
         onDecision(makeEntry({
             handIndex: rowIdx,
-            prediction: prediction.result,
+            prediction: getPrediction ? getPrediction() : null,
             actual,
             hands: handsAfter,
         }));
-    }, [onDecision, prediction.result]);
+    }, [onDecision, getPrediction]);
     
     const handleCellClick = useCallback((rowIdx, colIdx) => {
         if (rowIdx === 0) return;

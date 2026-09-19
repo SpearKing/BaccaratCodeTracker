@@ -109,3 +109,24 @@ describe('StatsModal', () => {
         expect(screen.getByText(new RegExp(ENGINE_VERSION.replace(/[+@]/g, '.'), 'i'))).toBeInTheDocument();
     });
 });
+
+describe('panel restraint', () => {
+    it('does not ask how much more data is needed when the engine is losing', () => {
+        // 2 right out of 7 -- well below break-even. Telling the user how many
+        // more hands would confirm this is not useful.
+        const log = Array.from({ length: 7 }, (_, i) => entry(i + 1, 'P', i < 2 ? 'P' : 'B'));
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        expect(screen.queryByText(/more than recorded so far/i)).not.toBeInTheDocument();
+    });
+
+    it('does not print empty rows for groups with nothing resolved', () => {
+        // Hands with no opinion carry confidence 0 and never resolve.
+        const log = [
+            ...Array.from({ length: 4 }, (_, i) => entry(i + 1, 'B', 'B')),
+            entry(5, null, 'P', { confidence: 0 }),
+            entry(6, null, 'B', { confidence: 0 }),
+        ];
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        expect(screen.queryByText('no data')).not.toBeInTheDocument();
+    });
+});

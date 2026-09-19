@@ -7,7 +7,17 @@ import { renderHook, act } from '@testing-library/react';
 import { useScorecardLogic } from './useScorecardLogic';
 import { handsFromGrid, deriveGrid } from '../engine/grid';
 
-const setup = (onDecision = () => {}) => renderHook(() => useScorecardLogic(onDecision));
+// The prediction is supplied by the caller in the real app too -- App owns the
+// single analytics instance and passes it down.
+const setup = (onDecision = () => {}, getPrediction = () => null) =>
+    renderHook(() => useScorecardLogic(onDecision, getPrediction));
+
+// Plays a single hand on a given row.
+const play2 = (result, row, hand) => {
+    act(() => {
+        result.current.handleCellClick(row, hand === 'P' ? 0 : 1);
+    });
+};
 
 // Plays hands in order by clicking the P or B cell on each successive row.
 const play = (result, hands) => {
@@ -146,17 +156,33 @@ describe('decision logging', () => {
         expect(logged.map((e) => e.hand)).toEqual([1, 2, 3]);
     });
 
-    it('stores what the engine was showing BEFORE the hand landed', () => {
+    it('stores whatever the caller was showing when the hand landed', () => {
         const logged = [];
-        const { result } = setup((e) => logged.push(e));
+        const shown = { prediction: 'P', confidence: 3, source: 'rule-of-three-player', pattern: null };
+        const { result } = setup((e) => logged.push(e), () => shown);
 
-        // Three Players in a row makes the Rule of Three predict another P.
         play(result, ['B', 'P', 'P', 'P', 'B']);
 
         const last = logged[logged.length - 1];
         expect(last.predicted).toBe('P');       // what it said
         expect(last.actual).toBe('B');          // what happened
         expect(last.source).toBe('rule-of-three-player');
+    });
+
+    it('reads the prediction at the moment of the click, not when it was wired up', () => {
+        // Guards the bug this replaced: the hook used to compute its own
+        // prediction from its own analytics instance, which never saw the
+        // analytics toggle change. The screen and the log then disagreed.
+        const logged = [];
+        let shown = { prediction: 'P', confidence: 1, source: 'pattern', pattern: 'pattern-1010' };
+        const { result } = setup((e) => logged.push(e), () => shown);
+
+        play(result, ['P']);
+        shown = { prediction: 'B', confidence: 5, source: 'pattern', pattern: 'pattern-232' };
+        play2(result, 2, 'B');
+
+        expect(logged[0]).toMatchObject({ predicted: 'P', confidence: 1, pattern: 'pattern-1010' });
+        expect(logged[1]).toMatchObject({ predicted: 'B', confidence: 5, pattern: 'pattern-232' });
     });
 
     it('does NOT log an edit to a hand already recorded', () => {
@@ -186,11 +212,10 @@ describe('decision logging', () => {
 
     it('keeps hands where the engine had no opinion', () => {
         const logged = [];
-        const { result } = setup((e) => logged.push(e));
+        const { result } = setup((e) => logged.push(e), () => null);
 
         play(result, ['P']);
 
-        // Nothing to go on for the very first hand.
         expect(logged[0].predicted).toBeNull();
         expect(logged[0].actual).toBe('P');
     });

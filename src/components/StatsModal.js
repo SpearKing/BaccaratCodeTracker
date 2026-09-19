@@ -46,7 +46,16 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
     const bWins = tallies?.bWins ?? 0;
     const totalHands = pWins + bWins;
 
-    const shortfall = s.overall.n > 0 && s.needed && s.needed !== Infinity
+    const scored = (grouped) => [...grouped.entries()].filter(([, t]) => t.n > 0);
+
+    // Only meaningful when the engine is actually ahead of the bar. Below it,
+    // "how many more hands to confirm this" would be asking how long to keep
+    // going to prove you are losing, which the verdict line already says.
+    const isAhead =
+        s.overall.n > 0 &&
+        s.overall.breakEven !== null &&
+        s.overall.interval.estimate >= s.overall.breakEven;
+    const shortfall = isAhead && s.needed && s.needed !== Infinity
         ? Math.max(0, s.needed - s.overall.n)
         : null;
 
@@ -162,7 +171,7 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
                                 <tr><th>Rule</th><th>n</th><th>Hit rate</th></tr>
                             </thead>
                             <tbody>
-                                {[...s.bySource.entries()].map(([source, t]) => (
+                                {scored(s.bySource).map(([source, t]) => (
                                     <tr key={source}>
                                         <td>{source.replace(/-/g, ' ')}</td>
                                         <td>{t.n}</td>
@@ -182,7 +191,7 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
                                 <tr><th>C-Level</th><th>n</th><th>Hit rate</th></tr>
                             </thead>
                             <tbody>
-                                {[...s.byConfidence.entries()].map(([level, t]) => (
+                                {scored(s.byConfidence).map(([level, t]) => (
                                     <tr key={level}>
                                         <td>{level}</td>
                                         <td>{t.n}</td>
@@ -192,7 +201,7 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
                             </tbody>
                         </table>
 
-                        {s.byPattern.size > 0 && (
+                        {scored(s.byPattern).length > 0 && (
                             <>
                                 <h3>By pattern</h3>
                                 <p className="stat-note">
@@ -203,7 +212,7 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
                                         <tr><th>Pattern</th><th>n</th><th>Hit rate</th></tr>
                                     </thead>
                                     <tbody>
-                                        {[...s.byPattern.entries()].map(([name, t]) => (
+                                        {scored(s.byPattern).map(([name, t]) => (
                                             <tr key={name}>
                                                 <td>{name.replace('pattern-', '')}</td>
                                                 <td>{t.n}</td>

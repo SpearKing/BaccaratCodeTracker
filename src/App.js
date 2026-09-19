@@ -21,20 +21,29 @@ function App() {
     const { log, append: appendDecision, clear: clearLog, pendingSync, syncError } =
         useDecisionLog(API_URL);
 
-    // The card name lives in useGameManagement, which is built on top of
-    // useScorecardLogic -- so it is stamped on here rather than passed down,
-    // which would make the two hooks circular.
+    // App owns the ONLY analytics instance and the ONLY prediction, and feeds
+    // both to the logger through refs. The refs are what break the cycle --
+    // the grid hook produces the scorecard that the prediction is computed
+    // from, but logging happens inside an event handler, after render, so
+    // reading the current value there is well defined.
+    //
+    // This matters: when the grid hook computed its own prediction from its own
+    // analytics instance, flipping the analytics switch never reached it, and
+    // the log recorded something different from what the screen showed.
     const cardNameRef = useRef(null);
+    const predictionRef = useRef(null);
+
     const handleDecision = useCallback(
         (entry) => appendDecision({ ...entry, card: cardNameRef.current }),
         [appendDecision]
     );
+    const getPrediction = useCallback(() => predictionRef.current, []);
 
     const {
         scorecard, setScorecard, lastWinType, setLastWinType, lastWinRow,
         setLastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow,
         recordTie, maxRenderableColumns,
-    } = useScorecardLogic(handleDecision);
+    } = useScorecardLogic(handleDecision, getPrediction);
 
     const { isDarkMode, setIsDarkMode } = useTheme();
     const { showAnalytics, setShowAnalytics, highlightedCells } = useAnalytics(scorecard, maxRenderableColumns);
@@ -59,7 +68,12 @@ function App() {
         cardNameRef.current = gameManagement.currentScorecardName;
     }, [gameManagement.currentScorecardName]);
 
-    const { predictedWinType, confidenceLevel } = usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
+    const { result: predictionResult, predictedWinType, confidenceLevel } =
+        usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
+
+    // Kept current during render so the event handlers below log exactly what
+    // the screen is showing at that moment.
+    predictionRef.current = predictionResult;
 
     const handleEnterStealthMode = () => { setIsDarkMode(true); setIsStealthMode(true); };
 
