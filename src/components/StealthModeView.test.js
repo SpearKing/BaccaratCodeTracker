@@ -37,9 +37,9 @@ const calibration = (level, rate, belowBreakEven) =>
     new Map([[level, { n: 300, rate, low: rate - 0.05, high: rate + 0.05, breakEven: 0.506, belowBreakEven }]]);
 
 describe('StealthModeView', () => {
-    it('reads "B, C: 42" — the side, then the measured rate', () => {
+    it('reads "B : 42%" — the side, then the measured rate', () => {
         const { container } = show(calibration(3, 0.42, true));
-        expect(line(container)).toBe('B, C: 42');
+        expect(line(container)).toBe('B : 42%');
     });
 
     it('marks the rate when the level is measurably losing', () => {
@@ -49,7 +49,7 @@ describe('StealthModeView', () => {
 
     it('leaves the rate unmarked when the level is not losing', () => {
         const { container } = show(calibration(3, 0.54, false));
-        expect(line(container)).toBe('B, C: 54');
+        expect(line(container)).toBe('B : 54%');
         expect(container.querySelector('.confidence-losing')).toBeNull();
     });
 
@@ -77,6 +77,6 @@ describe('StealthModeView', () => {
 
     it('rounds the rate to a whole number', () => {
         const { container } = show(calibration(3, 0.4267, false));
-        expect(line(container)).toBe('B, C: 43');
+        expect(line(container)).toBe('B : 43%');
     });
 });

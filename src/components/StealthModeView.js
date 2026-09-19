@@ -3,15 +3,15 @@ import React, { useState, useEffect } from 'react';
 import StealthIcon from './StealthIcon';
 import { predictNextHand } from '../engine/predict';
 
-// Reads as "B, C: 42" -- back Banker, and hands at this C-Level have come in
-// 42% of the time in this player's own log.
+// Reads as "B : 42%" -- back Banker, and hands like this one have come in 42%
+// of the time in this player's own log.
 //
-// C used to be the raw count of highlighted cells, dressed up as "Low" / "Med"
-// / "HIGH". Those labels were never measured, and when they finally were they
-// ran backwards: over ~2,500 real hands C=5 returned 46.80% while C=3 returned
-// 53.98%. C is now the measured rate itself, so it cannot disagree with the
-// outcome it is describing. Below 30 resolved bets at a level there is no
-// number to show, and the side is displayed on its own.
+// The number used to be a raw count of highlighted cells shown as "Low" /
+// "Med" / "HIGH". Those labels were never measured, and when they finally were
+// they ran backwards: over ~2,500 real hands the loudest level returned 46.80%
+// while a quieter one returned 53.98%. What is shown now is the measured rate
+// itself, so the number cannot disagree with the outcome it describes. Below
+// 30 resolved bets there is nothing to show and the side stands alone.
 
 
 const StealthModeView = ({
@@ -76,7 +76,7 @@ const StealthModeView = ({
                     <span className="prediction-value">{prediction || 'N/A'}</span>
                     {prediction && measured && (
                         <span className={`confidence-value${measured.belowBreakEven ? ' confidence-losing' : ''}`}>
-                            , C: {Math.round(measured.rate * 100)}
+                            &nbsp;: {Math.round(measured.rate * 100)}%
                         </span>
                     )}
                 </div>
