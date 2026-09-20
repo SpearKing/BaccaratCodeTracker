@@ -98,7 +98,7 @@ function App() {
     // settles a conflict when the pair has clashed often enough.
     const pairs = useMemo(() => headToHeadFrom(live), [live]);
 
-    const { result: predictionResult, predictedWinType, confidenceLevel } =
+    const { result: predictionResult, predictedWinType, confidenceLevel, predictionSource } =
         usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells, records, pairs);
 
     // Kept current during render so the event handlers below log exactly what
@@ -165,6 +165,7 @@ function App() {
                     handleFullReset={handleFullReset}
                     recordTie={recordTie}
                     predictedWinType={predictedWinType} confidenceLevel={confidenceLevel}
+                    predictionSource={predictionSource}
                     calibration={calibration}
                     {...gameManagement}
                 />

@@ -44,6 +44,23 @@ const StatsHelp = () => (
             This can be negative while the hit rate is above 50%, which is exactly why it is here.
         </Term>
 
+        <h3>The prediction bar</h3>
+        <p>Reads <strong>Prediction: B&nbsp;&nbsp; Rule: Wiener-3&nbsp;&nbsp; C: 51%</strong>.</p>
+        <Term name="Prediction">The side to back on the next hand.</Term>
+        <Term name="Rule">
+            Which rule produced that call. Several can fire on the same hand and disagree; this
+            is the one that won, and “When rules disagree” in the stats shows how those are settled.
+        </Term>
+        <Term name="C">
+            How often calls made at this confidence have actually come in. It describes the
+            confidence level, <em>not</em> the rule named beside it — the two are separate
+            measurements that happen to sit together. It turns red only when the whole range
+            sits below break-even, so a middling figure staying black means the sample is not
+            yet conclusive either way.
+        </Term>
+        <p>C reads “—” until <strong>{MIN_CALIBRATION_SAMPLE} hands</strong> have been played at
+            that confidence. A rate over fewer than that is not a rate.</p>
+
         <h3>This card</h3>
         <p>How many hands Banker and Player have each won on the card you are on. Nothing more
             than a count — a shoe running 60/40 either way is unremarkable.</p>
@@ -84,15 +101,6 @@ const StatsHelp = () => (
             poor against one particular opponent, because a clash only happens on the specific
             kind of board where both rules apply — and that is the board that matters when
             deciding between them.</p>
-
-        <h3>By C-Level</h3>
-        <p>The C-Level is a count of how many pattern columns were lit when the call was made.
-            It was once labelled Low / Med / HIGH, which was never measured.</p>
-        <p>When it was measured, it ran <em>backwards</em> — the higher levels came in less
-            often, not more. So the panel shows what each level has actually returned rather
-            than what it claims, and a level needs <strong>{MIN_CALIBRATION_SAMPLE} hands</strong>
-            before a figure is shown at all. If the levels do not climb down this table, the
-            C-Level is not telling you anything.</p>
 
         <h3>By pattern</h3>
         <p>Which of the grid patterns drove the call, and how those calls fared. Credited only

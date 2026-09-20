@@ -174,3 +174,4 @@ input:checked + .slider:before { transform: translateX(22px); }
 .stats-help .help-intro { opacity: 0.85; }
 .stats-help p { margin: 6px 0 10px; }
 .stats-help .help-term { margin: 4px 0 8px; padding-left: 10px; border-left: 2px solid var(--border-color); }
+.prediction-rule { font-size: 0.8em; opacity: 0.8; }

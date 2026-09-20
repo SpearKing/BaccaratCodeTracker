@@ -286,25 +286,10 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                             </>
                         )}
 
-                        {/* ---- By confidence -------------------------------- */}
-                        <h3>By C-Level</h3>
-                        <p className="stat-note">
-                            If the C-Level means anything, higher levels should verify more often.
-                        </p>
-                        <table className="stats-table">
-                            <thead>
-                                <tr><th>C-Level</th><th>n</th><th>Hit rate</th></tr>
-                            </thead>
-                            <tbody>
-                                {scored(s.byConfidence).map(([level, t]) => (
-                                    <tr key={level}>
-                                        <td>{level}</td>
-                                        <td>{t.n}</td>
-                                        <td><Rate tally={t} /></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        {/* The By C-Level table was here. The level is a count of
+                            lit columns and the table said nothing the measured
+                            percentage on the prediction bar does not. The
+                            calibration behind that percentage is unchanged. */}
 
                         {scored(s.byPattern).length > 0 && (
                             <>

@@ -35,8 +35,9 @@ export const matchesTrailing = (transitions, pattern) => {
  * only context, which is why the stated examples show one fewer hand than the
  * pattern has characters. All of these call the opposite of the last hand.
  */
-const transitionRule = (id, pattern, note) => ({
+const transitionRule = (id, pattern, note, label) => ({
     id,
+    label: label || id,
     pattern,
     note,
     // Longer patterns describe a more specific board, which breaks ties when
@@ -52,8 +53,9 @@ const transitionRule = (id, pattern, note) => ({
 
 const lastDecided = (hands, n) => hands.slice(Math.max(0, hands.length - n));
 
-const ruleOfThree = (id, test, decide, note) => ({
+const ruleOfThree = (id, label, test, decide, note) => ({
     id,
+    label,
     pattern: null,
     note,
     specificity: 3,
@@ -74,6 +76,7 @@ const ruleOfThree = (id, test, decide, note) => ({
  */
 const patternRule = {
     id: 'pattern',
+    label: 'pattern',
     pattern: null,
     note: 'rightmost highlighted column steps up or down',
     specificity: 1,
@@ -132,18 +135,21 @@ const patternRule = {
 export const RULES = [
     ruleOfThree(
         'rule-of-three-player',
+        'R3-P',
         (l) => l.every((h) => h === 'P'),
         () => 'P',
         'three Players running'
     ),
     ruleOfThree(
         'rule-of-three-banker',
+        'R3-B',
         (l) => l.every((h) => h === 'B'),
         () => 'B',
         'three Bankers running'
     ),
     ruleOfThree(
         'rule-of-three-alternating',
+        'R3-alt',
         (l, ctx) => matchesTrailing(transitionsOf(ctx.hands), 'OOO'),
         (l) => flip(l[l.length - 1]),
         'three switches running'
@@ -153,14 +159,17 @@ export const RULES = [
     // Supplied rules. Both families were specified before, and independently
     // of, the hands they were first measured on -- which is what makes that
     // measurement worth anything. See src/engine/proposedRules.test.js.
-    transitionRule('wiener-3', 'OORRO', 'run of three, broken once'),
-    transitionRule('wiener-4', 'OORRRO', 'run of four, broken once'),
-    transitionRule('wiener-5', 'OORRRRO', 'run of five, broken once'),
-    transitionRule('snake-box-2', 'OOROR', 'two and two'),
-    transitionRule('snake-box-3', 'OORRORR', 'three and three'),
+    transitionRule('wiener-3', 'OORRO', 'run of three, broken once', 'Wiener-3'),
+    transitionRule('wiener-4', 'OORRRO', 'run of four, broken once', 'Wiener-4'),
+    transitionRule('wiener-5', 'OORRRRO', 'run of five, broken once', 'Wiener-5'),
+    transitionRule('snake-box-2', 'OOROR', 'two and two', 'Snake-2'),
+    transitionRule('snake-box-3', 'OORRORR', 'three and three', 'Snake-3'),
 ];
 
 export const ruleById = (id) => RULES.find((r) => r.id === id) || null;
+
+/** Short name for a rule, for places where the full id will not fit. */
+export const ruleLabel = (id) => ruleById(id)?.label || id;
 
 /** Every rule that has an opinion on this board. */
 export const firingRules = (context) =>

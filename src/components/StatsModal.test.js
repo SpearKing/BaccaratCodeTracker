@@ -134,24 +134,6 @@ describe('panel restraint', () => {
     });
 });
 
-describe('C-Level presentation', () => {
-    it('shows levels in the order measured, without implying higher is better', () => {
-        // The real ordering: C=3 beats C=5.
-        const log = [
-            ...Array.from({ length: 100 }, (_, i) => entry(i + 1, 'P', i < 54 ? 'P' : 'B', { confidence: 3 })),
-            ...Array.from({ length: 100 }, (_, i) => entry(i + 200, 'P', i < 47 ? 'P' : 'B', { confidence: 5 })),
-        ];
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
-        expect(screen.getByText(/higher levels should verify more often/i)).toBeInTheDocument();
-        // C=3 is shown ahead of C=5 with its higher rate, so the inversion is
-        // visible rather than hidden behind a "HIGH" label.
-        const body = document.body.textContent;
-        expect(body).toMatch(/54\.0%/);
-        expect(body).toMatch(/47\.0%/);
-        expect(body.indexOf('54.0%')).toBeLessThan(body.indexOf('47.0%'));
-    });
-});
-
 describe('per-rule records', () => {
     const fired = (i, id, call, actual, cardName) =>
         withCandidates(
@@ -266,8 +248,8 @@ describe('the help view', () => {
         const { container } = open();
         fireEvent.click(container.querySelector('.stats-help-button'));
         const text = container.textContent;
-        ['This card', 'Predictions', 'Compared with betting blind', 'By rule',
-         'When rules disagree', 'By C-Level', 'By pattern', 'Log'].forEach((heading) => {
+        ['The prediction bar', 'This card', 'Predictions', 'Compared with betting blind',
+         'By rule', 'When rules disagree', 'By pattern', 'Log'].forEach((heading) => {
             expect(text).toContain(heading);
         });
     });
@@ -279,7 +261,9 @@ describe('the help view', () => {
         expect(text).toMatch(/51\.28%/);              // Banker break-even, not 50%
         expect(text).toMatch(/Per unit staked/);
         expect(text).toMatch(/range/i);
-        expect(text).toMatch(/backwards/);            // the C-Level inversion
+        // The distinction the bar's layout could otherwise imply: C describes
+        // the confidence level, not the rule sitting next to it.
+        expect(text).toMatch(/not.{0,4}the rule named beside it/i);
     });
 
     it('leaves the close button reachable from the help', () => {

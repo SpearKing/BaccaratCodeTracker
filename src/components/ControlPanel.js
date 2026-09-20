@@ -1,6 +1,7 @@
 // src/components/ControlPanel.js
 import React from 'react';
 import { DEFAULT_GAME_NAME } from '../utils/constants';
+import { ruleLabel } from '../engine/rules';
 import StealthIcon from './StealthIcon';
 
 const ControlPanel = ({
@@ -21,7 +22,7 @@ const ControlPanel = ({
     handleFullReset,
     recordTie,
     saveState,
-    predictedWinType, confidenceLevel, calibration,
+    predictedWinType, confidenceLevel, predictionSource, calibration,
 }) => {
     const gameNamePresets = ["Boomtown", "L'auberge", "Treasure Chest", "Ceaser's NO."];
 
@@ -33,23 +34,29 @@ const ControlPanel = ({
                         <>
                             Prediction: <span className={predictedWinType === 'P' ? 'p-color' : (predictedWinType === 'B' ? 'b-color' : '')}>{predictedWinType || 'N/A'}</span>
                             {(() => {
-                                // The percentage leads, because it is the part
-                                // that means anything: the level itself is a
-                                // count of highlighted cells, and measured over
-                                // real hands it runs backwards.
+                                // Each figure carries its own label. An earlier
+                                // version put the rule name where the C-Level
+                                // label had been, which read as though the
+                                // percentage described the rule -- it does not.
+                                // "Wiener-3 51% over 834" paired a rule that had
+                                // fired 89 times with a confidence level that
+                                // had 834 hands behind it.
                                 const m = calibration?.get(confidenceLevel);
-                                if (!m) {
-                                    return <>&nbsp;&nbsp;&nbsp; C{confidenceLevel} <span className="c-level-measured">· no data yet</span></>;
-                                }
                                 return (
                                     <>
-                                        &nbsp;&nbsp;&nbsp;
-                                        <span className={m.belowBreakEven ? 'confidence-losing' : undefined}>
-                                            {(m.rate * 100).toFixed(0)}%
-                                        </span>
-                                        <span className="c-level-measured">
-                                            &nbsp;· C{confidenceLevel} over {m.n}
-                                        </span>
+                                        {predictionSource && (
+                                            <span className="prediction-rule">
+                                                &nbsp;&nbsp;&nbsp; Rule: {ruleLabel(predictionSource)}
+                                            </span>
+                                        )}
+                                        &nbsp;&nbsp;&nbsp; C:{' '}
+                                        {m ? (
+                                            <span className={m.belowBreakEven ? 'confidence-losing' : undefined}>
+                                                {(m.rate * 100).toFixed(0)}%
+                                            </span>
+                                        ) : (
+                                            <span className="c-level-measured">—</span>
+                                        )}
                                     </>
                                 );
                             })()}
