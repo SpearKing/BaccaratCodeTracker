@@ -20,6 +20,17 @@ export const transitionsOf = (hands) => {
     return out;
 };
 
+/**
+ * The transitions for a context, reusing a precomputed array when one is given.
+ *
+ * Every transition rule needs this same array, so deriving it per rule per hand
+ * costs nine passes over the whole history on every single hand -- quadratic in
+ * the length of the card, which is invisible on an 80-hand shoe and fatal in a
+ * simulation of millions. `sim.js` maintains one incrementally and passes it
+ * in; the live app passes nothing and gets the original behaviour.
+ */
+const transitionsFor = (ctx) => ctx.transitions || transitionsOf(ctx.hands);
+
 const flip = (side) => (side === 'P' ? 'B' : 'P');
 
 /** True when `pattern` matches the most recent transitions. */
@@ -43,8 +54,9 @@ const transitionRule = (id, pattern, note, label) => ({
     // Longer patterns describe a more specific board, which breaks ties when
     // two rules have equally thin records.
     specificity: pattern.length,
-    call: ({ hands }) => {
-        if (!matchesTrailing(transitionsOf(hands), pattern)) return null;
+    call: (ctx) => {
+        if (!matchesTrailing(transitionsFor(ctx), pattern)) return null;
+        const { hands } = ctx;
         return flip(hands[hands.length - 1]);
     },
 });
@@ -150,7 +162,7 @@ export const RULES = [
     ruleOfThree(
         'rule-of-three-alternating',
         'R3-alt',
-        (l, ctx) => matchesTrailing(transitionsOf(ctx.hands), 'OOO'),
+        (l, ctx) => matchesTrailing(transitionsFor(ctx), 'OOO'),
         (l) => flip(l[l.length - 1]),
         'three switches running'
     ),
