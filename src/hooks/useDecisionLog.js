@@ -52,6 +52,26 @@ export const useDecisionLog = (apiUrl) => {
 
     const clear = useCallback(() => setLog([]), []);
 
+    /**
+     * Merges entries in from a file.
+     *
+     * Deduplicated on card, hand and engine, so importing the same file twice
+     * does not double-count a rule's record. Existing entries win, because what
+     * this device recorded live is the better evidence.
+     */
+    const importDecisions = useCallback((incoming) => {
+        setLog((prev) => {
+            const seen = new Set(prev.map((e) => `${e.engine}#${e.card}#${e.hand}`));
+            const added = (incoming || []).filter((e) => {
+                const key = `${e.engine}#${e.card}#${e.hand}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            return [...prev, ...added.map((e) => ({ ...e, synced: false }))];
+        });
+    }, []);
+
     /** Pushes everything not yet on the server, then marks it. */
     const sync = useCallback(async () => {
         if (!apiUrl || syncing.current) return;
@@ -91,5 +111,5 @@ export const useDecisionLog = (apiUrl) => {
 
     const pendingSync = log.filter((e) => !e.synced).length;
 
-    return { log, append, clear, sync, pendingSync, syncError };
+    return { log, append, importDecisions, clear, sync, pendingSync, syncError };
 };

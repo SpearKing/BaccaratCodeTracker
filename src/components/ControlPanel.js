@@ -32,16 +32,25 @@ const ControlPanel = ({
                     {showAnalytics ? (
                         <>
                             Prediction: <span className={predictedWinType === 'P' ? 'p-color' : (predictedWinType === 'B' ? 'b-color' : '')}>{predictedWinType || 'N/A'}</span>
-                            &nbsp;&nbsp;&nbsp; C-Level: <span>{confidenceLevel}</span>
                             {(() => {
-                                // What this level has actually returned, once
-                                // there are enough hands to mean anything.
+                                // The percentage leads, because it is the part
+                                // that means anything: the level itself is a
+                                // count of highlighted cells, and measured over
+                                // real hands it runs backwards.
                                 const m = calibration?.get(confidenceLevel);
-                                if (!m) return null;
+                                if (!m) {
+                                    return <>&nbsp;&nbsp;&nbsp; C{confidenceLevel} <span className="c-level-measured">· no data yet</span></>;
+                                }
                                 return (
-                                    <span className={`c-level-measured${m.belowBreakEven ? ' confidence-losing' : ''}`}>
-                                        &nbsp;· {(m.rate * 100).toFixed(0)}% over {m.n}
-                                    </span>
+                                    <>
+                                        &nbsp;&nbsp;&nbsp;
+                                        <span className={m.belowBreakEven ? 'confidence-losing' : undefined}>
+                                            {(m.rate * 100).toFixed(0)}%
+                                        </span>
+                                        <span className="c-level-measured">
+                                            &nbsp;· C{confidenceLevel} over {m.n}
+                                        </span>
+                                    </>
                                 );
                             })()}
                         </>

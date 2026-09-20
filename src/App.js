@@ -23,7 +23,7 @@ function App() {
     const [isStealthMode, setIsStealthMode] = useState(false);
     const [showStats, setShowStats] = useState(false);
 
-    const { log, append: appendDecision, pendingSync, syncError } = useDecisionLog(API_URL);
+    const { log, append: appendDecision, importDecisions, pendingSync, syncError } = useDecisionLog(API_URL);
     const { testMode, setTestMode } = useTestMode();
 
     // Everything the engine learns from, and everything the headline numbers
@@ -109,6 +109,22 @@ function App() {
 
     // Saving a copy is the only destructive-adjacent thing worth offering: the
     // log is the engine's memory and nothing pulls it back from the server.
+    const handleImportLog = useCallback((file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(reader.result);
+                const incoming = Array.isArray(parsed) ? parsed : parsed?.entries;
+                if (!Array.isArray(incoming)) throw new Error('That file does not hold a decision log.');
+                importDecisions(incoming);
+            } catch (error) {
+                alert(`Could not read that log: ${error.message}`);
+            }
+        };
+        reader.readAsText(file);
+    }, [importDecisions]);
+
     const handleExportLog = useCallback(() => {
         const blob = new Blob([JSON.stringify(log, null, 1)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -171,6 +187,7 @@ function App() {
                     pendingSync={pendingSync}
                     syncError={syncError}
                     onExportLog={handleExportLog}
+                    onImportLog={handleImportLog}
                     onClose={() => setShowStats(false)}
                 />
             )}

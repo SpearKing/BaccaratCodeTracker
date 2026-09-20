@@ -11,7 +11,8 @@
 // The replay rides deriveGrid's own traversal via its onStep hook rather than
 // stepping the grid itself, so it cannot drift from what the app does.
 
-import { deriveGrid, handsFromGrid, isDecided } from './grid';
+import { deriveGrid, isDecided } from './grid';
+import { fromStored } from './cardFormat';
 import { computeHighlights } from './analytics';
 import { predictNextHand } from './predict';
 import { makeEntry } from './decisionLog';
@@ -63,10 +64,9 @@ export const replaySavedCards = (games, { minHands = 1 } = {}) => {
     const pairs = new Map();
 
     Object.keys(games || {}).forEach((name) => {
-        const scorecard = games[name]?.scorecard;
-        if (!Array.isArray(scorecard)) return;
+        const hands = fromStored(games[name]);
+        if (hands.length === 0) return;
 
-        const hands = handsFromGrid(scorecard);
         const decided = hands.filter((h) => h === 'P' || h === 'B').length;
         if (decided < minHands) return;
 
@@ -89,9 +89,9 @@ export const cardsInOrder = (games) => {
         .map((name) => ({
             name,
             t: dateOf(name),
-            hands: Array.isArray(games[name]?.scorecard)
-                ? handsFromGrid(games[name].scorecard).filter(isDecided)
-                : [],
+            // fromStored reads both the current hands-only shape and the old
+            // full-grid saves, so the harness keeps working across the change.
+            hands: fromStored(games[name]).filter(isDecided),
         }))
         .filter((c) => c.hands.length > 0)
         .sort((a, b) => a.t - b.t);

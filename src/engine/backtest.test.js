@@ -86,3 +86,24 @@ describe('replayCard', () => {
         }
     });
 });
+
+describe('reading saved cards', () => {
+    it('reads the current hands-only shape', () => {
+        const { cardsInOrder } = require('./backtest');
+        const cards = cardsInOrder({ 'A card - 01/02/25': { v: 1, hands: 'PPBPB' } });
+        expect(cards[0].hands).toEqual(['P', 'P', 'B', 'P', 'B']);
+    });
+
+    it('still reads old full-grid saves', () => {
+        const { cardsInOrder } = require('./backtest');
+        const hands = ['P', 'B', 'B', 'P'];
+        const cards = cardsInOrder({ 'Old - 01/02/25': { scorecard: deriveGrid(hands, 20) } });
+        expect(cards[0].hands).toEqual(hands);
+    });
+
+    it('drops ties from the replay sequence but keeps the hands', () => {
+        const { cardsInOrder } = require('./backtest');
+        const cards = cardsInOrder({ 'Ties - 01/02/25': { v: 1, hands: 'PTBP' } });
+        expect(cards[0].hands).toEqual(['P', 'B', 'P']);
+    });
+});

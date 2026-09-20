@@ -31,7 +31,7 @@ const Verdict = ({ tally: t }) => {
     return <span className="verdict-unknown">indistinguishable from chance</span>;
 };
 
-const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError, onExportLog, onClose }) => {
+const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError, onExportLog, onImportLog, onClose }) => {
     const entries = useMemo(() => dedupe(log || []), [log]);
 
     // Never average two engines together. Only the current one is scored.
@@ -338,6 +338,15 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                 <button className="load-button" onClick={onExportLog}>
                     Download decision log
                 </button>
+                <label className="load-button import-log-button">
+                    Import decision log
+                    <input
+                        type="file"
+                        accept="application/json,.json"
+                        style={{ display: 'none' }}
+                        onChange={(e) => { onImportLog?.(e.target.files?.[0]); e.target.value = ''; }}
+                    />
+                </label>
             </div>
         </div>
     );
