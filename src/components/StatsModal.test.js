@@ -149,9 +149,9 @@ describe('per-rule records', () => {
         render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
 
         const body = document.body.textContent;
-        expect(body).toMatch(/wiener 3/);
-        expect(body).toMatch(/75\.0%/);   // this card: 30 of 40
-        expect(body).toMatch(/50\.0%/);   // overall: 40 of 80
+        expect(body).toMatch(/Wiener-3/);
+        expect(body).toMatch(/75\.0%/);   // this session: 30 of 40
+        expect(body).toMatch(/50\.0%/);   // all sessions: 40 of 80
     });
 
     it('greys a rate with too few firings behind it', () => {
@@ -184,8 +184,8 @@ describe('the clash table', () => {
         render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
         const body = document.body.textContent;
         expect(body).toMatch(/When rules disagree/);
-        expect(body).toMatch(/pattern v rule of three banker/);
-        expect(body).toMatch(/rule of three banker 60\.0%/);
+        expect(body).toMatch(/pattern v R3-B/);
+        expect(body).toMatch(/R3-B 60\.0%/);
     });
 
     it('calls a dead heat even rather than picking a side', () => {
@@ -248,7 +248,7 @@ describe('the help view', () => {
         const { container } = open();
         fireEvent.click(container.querySelector('.stats-help-button'));
         const text = container.textContent;
-        ['The prediction bar', 'This card', 'Predictions', 'Compared with betting blind',
+        ['The prediction bar', 'This session', 'Predictions', 'Compared with betting blind',
          'By rule', 'When rules disagree', 'By pattern', 'Log'].forEach((heading) => {
             expect(text).toContain(heading);
         });
@@ -270,5 +270,36 @@ describe('the help view', () => {
         const { container } = open();
         fireEvent.click(container.querySelector('.stats-help-button'));
         expect(container.querySelector('.stats-close-button')).not.toBeNull();
+    });
+});
+
+describe('session versus all sessions', () => {
+    const fired = (i, id, call, actual, cardName) => ({
+        ...entry(i, call, actual), card: cardName, candidates: [{ id, call }],
+    });
+
+    it('gives the session its own rule table, separate from the overall one', () => {
+        const log = [
+            ...Array.from({ length: 40 }, (_, i) => fired(i + 1, 'wiener-3', 'B', i < 30 ? 'B' : 'P', 'Tonight')),
+            ...Array.from({ length: 40 }, (_, i) => fired(i + 100, 'wiener-3', 'B', i < 10 ? 'B' : 'P', 'Last week')),
+        ];
+        render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
+        const body = document.body.textContent;
+
+        expect(body).toMatch(/By rule, this session/);
+        expect(body).toMatch(/By rule, all sessions/);
+        // 30 of 40 on this card; 40 of 80 across both.
+        expect(body).toMatch(/75\.0%/);
+        expect(body).toMatch(/50\.0%/);
+        // The session table comes first, under the session heading.
+        expect(body.indexOf('By rule, this session')).toBeLessThan(body.indexOf('By rule, all sessions'));
+        expect(body.indexOf('This session')).toBeLessThan(body.indexOf('By rule, this session'));
+    });
+
+    it('leaves the session table out when nothing has fired on this card', () => {
+        const log = Array.from({ length: 40 }, (_, i) => fired(i + 1, 'wiener-3', 'B', 'B', 'Another card'));
+        render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
+        expect(document.body.textContent).not.toMatch(/By rule, this session/);
+        expect(document.body.textContent).toMatch(/By rule, all sessions/);
     });
 });

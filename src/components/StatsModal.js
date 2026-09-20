@@ -4,7 +4,7 @@ import { summarise, beatsBreakEven, wilsonInterval } from '../engine/stats';
 import { dedupe, byEngine } from '../engine/decisionLog';
 import { recordsFrom, headToHeadFrom, MIN_FIRINGS } from '../engine/arbitrate';
 import { ENGINE_VERSION } from '../engine/predict';
-import { RULES } from '../engine/rules';
+import { RULES, ruleLabel } from '../engine/rules';
 import StatsHelp from './StatsHelp';
 
 const pct = (x) => (x === null || x === undefined ? '--' : `${(x * 100).toFixed(1)}%`);
@@ -74,6 +74,22 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
 
     const scored = (grouped) => [...grouped.entries()].filter(([, t]) => t.n > 0);
 
+    // One renderer for both rule tables. They ask the same question of
+    // different slices, so they should not be able to drift apart.
+    const ruleRows = (records) => RULES.map((rule) => {
+        const rec = records.get(rule.id);
+        if (!rec || rec.n === 0) return null;
+        const ci = wilsonInterval(rec.correct, rec.n);
+        const thin = rec.n < MIN_FIRINGS;
+        return (
+            <tr key={rule.id}>
+                <td>{rule.label || rule.id}</td>
+                <td>{rec.n}</td>
+                <td className={thin ? 'stat-muted' : undefined}>{pct(ci.estimate)}</td>
+            </tr>
+        );
+    }).filter(Boolean);
+
     // Only meaningful when the engine is actually ahead of the bar. Below it,
     // "how many more hands to confirm this" would be asking how long to keep
     // going to prove you are losing, which the verdict line already says.
@@ -106,8 +122,8 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                 <div className="stats-modal-body">
                 {showHelp ? <StatsHelp /> : <>
 
-                {/* ---- This card ------------------------------------------ */}
-                <h3>This card</h3>
+                {/* ---- This session --------------------------------------- */}
+                <h3>This session</h3>
                 <table className="stats-table">
                     <tbody>
                         <tr>
@@ -122,6 +138,18 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                         </tr>
                     </tbody>
                 </table>
+
+                {ruleRows(sessionRecords).length > 0 && (
+                    <>
+                        <h3 className="stats-subhead">By rule, this session</h3>
+                        <table className="stats-table">
+                            <thead>
+                                <tr><th>Rule</th><th>Fired</th><th>Hit rate</th></tr>
+                            </thead>
+                            <tbody>{ruleRows(sessionRecords)}</tbody>
+                        </table>
+                    </>
+                )}
 
                 {/* ---- Predictions ---------------------------------------- */}
                 <h3>Predictions <span className="stat-muted">(all cards)</span></h3>
@@ -206,7 +234,7 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                         </table>
 
                         {/* ---- By rule -------------------------------------- */}
-                        <h3>By rule</h3>
+                        <h3>By rule, all sessions</h3>
                         <p className="stat-note">
                             Every hand a rule fired on, whether or not it won the call —
                             this is what decides conflicts. A rule needs {MIN_FIRINGS} firings
@@ -214,38 +242,9 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                         </p>
                         <table className="stats-table">
                             <thead>
-                                <tr>
-                                    <th>Rule</th>
-                                    <th colSpan="2">This card</th>
-                                    <th colSpan="2">Overall</th>
-                                </tr>
+                                <tr><th>Rule</th><th>Fired</th><th>Hit rate</th></tr>
                             </thead>
-                            <tbody>
-                                {RULES.map((rule) => {
-                                    const here = sessionRecords.get(rule.id);
-                                    const all = overallRecords.get(rule.id);
-                                    if (!here && !all) return null;
-                                    const show = (rec) => {
-                                        if (!rec || rec.n === 0) return <span className="stat-muted">—</span>;
-                                        const ci = wilsonInterval(rec.correct, rec.n);
-                                        const thin = rec.n < MIN_FIRINGS;
-                                        return (
-                                            <span className={thin ? 'stat-muted' : undefined}>
-                                                {pct(ci.estimate)}
-                                            </span>
-                                        );
-                                    };
-                                    return (
-                                        <tr key={rule.id}>
-                                            <td>{rule.id.replace(/-/g, ' ')}</td>
-                                            <td>{here ? here.n : 0}</td>
-                                            <td>{show(here)}</td>
-                                            <td>{all ? all.n : 0}</td>
-                                            <td>{show(all)}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
+                            <tbody>{ruleRows(overallRecords)}</tbody>
                         </table>
                         <p className="stat-note stat-muted">
                             Greyed rates have fewer than {MIN_FIRINGS} firings and are not yet used.
@@ -271,12 +270,12 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                                             const thin = n < MIN_FIRINGS;
                                             return (
                                                 <tr key={`${a}|${b}`}>
-                                                    <td>{a.replace(/-/g, ' ')} v {b.replace(/-/g, ' ')}</td>
+                                                    <td>{ruleLabel(a)} v {ruleLabel(b)}</td>
                                                     <td>{n}</td>
                                                     <td className={thin ? 'stat-muted' : undefined}>
                                                         {aRate === 0.5
                                                             ? 'even'
-                                                            : `${leader.replace(/-/g, ' ')} ${pct(rate)}`}
+                                                            : `${ruleLabel(leader)} ${pct(rate)}`}
                                                     </td>
                                                 </tr>
                                             );

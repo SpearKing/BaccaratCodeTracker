@@ -61,9 +61,14 @@ const StatsHelp = () => (
         <p>C reads “—” until <strong>{MIN_CALIBRATION_SAMPLE} hands</strong> have been played at
             that confidence. A rate over fewer than that is not a rate.</p>
 
-        <h3>This card</h3>
+        <h3>This session</h3>
         <p>How many hands Banker and Player have each won on the card you are on. Nothing more
             than a count — a shoe running 60/40 either way is unremarkable.</p>
+        <p><strong>By rule, this session</strong> shows how each rule has done on this card
+            alone. Useful for seeing what is happening in front of you, but the numbers will be
+            small: a shoe is roughly 80 hands, so most rules fire only a handful of times and
+            almost nothing here will be conclusive. The all-sessions table below is the one to
+            judge a rule on.</p>
 
         <h3>Predictions (all cards)</h3>
         <p>The engine’s record across every card, not just this one.</p>
@@ -86,10 +91,10 @@ const StatsHelp = () => (
             switched. If the engine cannot beat these, it is not adding anything — and this is
             the comparison that makes a hit rate readable.</p>
 
-        <h3>By rule</h3>
-        <p>Each rule’s own record, shown for this card and overall. It counts every hand a rule
-            fired on, whether or not its call was the one used — a rule that keeps losing the
-            argument still needs a record, or it could never earn its way back.</p>
+        <h3>By rule, all sessions</h3>
+        <p>Each rule’s record across every card. It counts every hand a rule fired on, whether
+            or not its call was the one used — a rule that keeps losing the argument still needs
+            a record, or it could never earn its way back.</p>
         <p>A rule needs <strong>{MIN_FIRINGS} firings</strong> before its rate is trusted. Below
             that the rate is greyed and ignored, because a rate over a handful of hands is not
             a rate.</p>
