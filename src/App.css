@@ -176,3 +176,60 @@ input:checked + .slider:before { transform: translateX(22px); }
 .stats-help .help-term { margin: 4px 0 8px; padding-left: 10px; border-left: 2px solid var(--border-color); }
 .prediction-rule { font-size: 0.8em; opacity: 0.8; }
 .stats-modal-content h3.stats-subhead { margin-top: 10px; font-size: 0.9em; opacity: 0.7; font-weight: normal; }
+
+/* --- Simulator ------------------------------------------------------------ */
+.sim-button { background-color: var(--button-load-bg); }
+.sim-modal { max-width: 760px; }
+.sim-modal h3 { margin: 16px 0 6px; font-size: 1em; opacity: 0.85; }
+.sim-controls { border-bottom: 1px solid var(--border-color); padding-bottom: 14px; }
+
+.sim-presets, .sim-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.sim-chip { padding: 5px 10px; font-size: 0.85em; width: auto; border: 1px solid var(--border-color); border-radius: 14px; background-color: var(--grid-cell-bg); color: var(--text-color); cursor: pointer; }
+.sim-chip.active { background-color: var(--button-load-bg); color: #fff; border-color: var(--button-load-bg); }
+.sim-chip:disabled { opacity: 0.5; cursor: default; }
+
+.sim-rule-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 2px 10px; }
+.sim-check { display: flex; align-items: center; gap: 6px; font-size: 0.9em; cursor: pointer; }
+.sim-check input { width: auto; margin: 0; }
+
+.sim-field { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.sim-field label, .sim-range label { display: flex; flex-direction: column; gap: 3px; font-size: 0.85em; opacity: 0.85; flex: 1 1 160px; }
+.sim-field select, .sim-field input, .sim-range input { padding: 7px; font-size: 0.95em; border: 1px solid var(--border-color); border-radius: 5px; background-color: var(--grid-cell-bg); color: var(--text-color); }
+.sim-range { display: flex; gap: 10px; margin: 6px 0; }
+
+.sim-note { font-size: 0.8em; opacity: 0.7; margin: 6px 0; }
+.sim-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.sim-actions button { width: auto; margin: 0; padding: 9px 18px; }
+.sim-actions .sim-note { margin: 0; }
+
+.sim-progress { height: 4px; margin-top: 10px; background-color: var(--border-color); border-radius: 2px; overflow: hidden; }
+.sim-progress div { height: 100%; background-color: var(--button-load-bg); transition: width 0.2s linear; }
+
+.sim-help-link { width: auto; margin-left: auto; padding: 5px 4px; background: none; border: none; font-size: 0.8em; opacity: 0.7; color: var(--text-color); text-decoration: underline; cursor: pointer; }
+.sim-help-link:hover { opacity: 1; }
+.sim-modal .stats-help h3:first-of-type { margin-top: 4px; }
+.sim-verdict { font-size: 0.95em; margin: 8px 0; line-height: 1.4; }
+.sim-empty { font-size: 0.85em; opacity: 0.7; text-align: center; padding: 20px 0; }
+
+.sim-chart { margin: 10px 0 0; }
+.sim-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.sim-caption { font-size: 0.78em; opacity: 0.7; margin-top: 6px; line-height: 1.4; }
+
+.sim-band { fill: var(--text-color); opacity: 0.11; }
+.sim-axis { stroke: var(--text-color); opacity: 0.45; stroke-width: 1; }
+.sim-line { stroke: var(--button-load-bg); stroke-width: 1.8; stroke-linejoin: round; }
+.sim-line.sim-line-up { stroke: var(--button-save-bg); stroke-width: 2.4; }
+.sim-line.sim-line-down { stroke: var(--button-delete-bg); stroke-width: 2.4; }
+.sim-tick { fill: var(--text-color); opacity: 0.65; font-size: 11px; }
+.sim-rule-label { fill: var(--text-color); font-size: 12px; font-weight: bold; }
+.sim-whisker { stroke: var(--text-color); opacity: 0.5; stroke-width: 1.5; }
+.sim-breakeven { stroke: var(--button-delete-bg); stroke-width: 1.5; opacity: 0.85; }
+.sim-dot { fill: var(--text-color); }
+.sim-dot.sim-dot-good { fill: var(--button-save-bg); }
+.sim-dot.sim-dot-bad { fill: var(--button-delete-bg); }
+
+@media (max-width: 600px) {
+  .sim-modal { max-width: 96%; }
+  .sim-rule-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .sim-field label { flex-basis: 100%; }
+}

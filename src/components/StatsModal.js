@@ -1,5 +1,5 @@
 // src/components/StatsModal.js
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { summarise, beatsBreakEven, wilsonInterval } from '../engine/stats';
 import { dedupe, byEngine } from '../engine/decisionLog';
 import { recordsFrom, headToHeadFrom, MIN_FIRINGS } from '../engine/arbitrate';
@@ -35,6 +35,13 @@ const Verdict = ({ tally: t }) => {
 const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError, onExportLog, onImportLog, onClose }) => {
     const [showHelp, setShowHelp] = useState(false);
     const entries = useMemo(() => dedupe(log || []), [log]);
+
+    // Both views share one scrolling element, so without this the help opens at
+    // whatever offset the statistics were left at. The "?" stays pinned to the
+    // panel while the body scrolls, so it is reachable from the bottom of a long
+    // page -- which is exactly where it lands you mid-sentence.
+    const bodyRef = useRef(null);
+    useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [showHelp]);
 
     // Never average two engines together. Only the current one is scored.
     const engines = useMemo(() => byEngine(entries), [entries]);
@@ -119,7 +126,7 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                     stay put. The panel has grown a lot -- baselines, per-rule
                     records, the clash table -- and had no max height at all,
                     so on a phone the lower half was simply unreachable. */}
-                <div className="stats-modal-body">
+                <div className="stats-modal-body" ref={bodyRef}>
                 {showHelp ? <StatsHelp /> : <>
 
                 {/* ---- This session --------------------------------------- */}

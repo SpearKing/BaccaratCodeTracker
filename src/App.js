@@ -12,6 +12,7 @@ import ScorecardGrid from './components/ScorecardGrid';
 import ControlPanel from './components/ControlPanel';
 import StealthModeView from './components/StealthModeView';
 import StatsModal from './components/StatsModal';
+import SimModal from './components/SimModal';
 import { confidenceCalibration } from './engine/stats';
 import { recordsFrom, headToHeadFrom } from './engine/arbitrate';
 import { liveEntries, testEntries } from './engine/decisionLog';
@@ -22,6 +23,7 @@ function App() {
     const [showControls, setShowControls] = useState(false);
     const [isStealthMode, setIsStealthMode] = useState(false);
     const [showStats, setShowStats] = useState(false);
+    const [showSim, setShowSim] = useState(false);
 
     const { log, append: appendDecision, importDecisions, pendingSync, syncError } = useDecisionLog(API_URL);
     const { testMode, setTestMode } = useTestMode();
@@ -158,6 +160,7 @@ function App() {
                 <ControlPanel
                     onStealthClick={handleEnterStealthMode}
                     onStatsClick={() => setShowStats(true)}
+                    onSimClick={() => setShowSim(true)}
                     showControls={showControls} setShowControls={setShowControls}
                     isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
                     showAnalytics={showAnalytics} setShowAnalytics={setShowAnalytics}
@@ -192,6 +195,9 @@ function App() {
                     onClose={() => setShowStats(false)}
                 />
             )}
+
+            {/* Mounted only while open, so closing it terminates every worker. */}
+            {showSim && <SimModal onClose={() => setShowSim(false)} />}
         </div>
     );
 }

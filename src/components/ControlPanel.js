@@ -5,7 +5,7 @@ import { ruleLabel } from '../engine/rules';
 import StealthIcon from './StealthIcon';
 
 const ControlPanel = ({
-    onStealthClick, onStatsClick,
+    onStealthClick, onStatsClick, onSimClick,
     showControls, setShowControls,
     isDarkMode, setIsDarkMode,
     showAnalytics, setShowAnalytics,
@@ -99,6 +99,7 @@ const ControlPanel = ({
                     <button onClick={handleFullReset} className="reset-button">New</button>
                     <button onClick={handleQuickSave} className="quick-save-button">Save</button>
                     <button onClick={onStatsClick} className="stats-button">Stats</button>
+                    <button onClick={onSimClick} className="sim-button" title="Run rules over generated shoes">Sim</button>
                     <button onClick={recordTie} className="tie-button" title="Record a tie on the next hand">Tie</button>
                 </div>
                 <hr className="divider" />
