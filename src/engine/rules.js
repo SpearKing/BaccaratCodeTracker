@@ -109,6 +109,26 @@ const patternRule = {
     },
 };
 
+// Which rules can ever meet each other is fixed by their shapes, not by the
+// data. Enumerating all 4,096 twelve-transition histories:
+//
+//   pattern + any rule-of-three          512 histories each
+//   pattern + wiener-3 / snake-box-2     128 each
+//   pattern + wiener-4                    64
+//   pattern + wiener-5 / snake-box-3      32
+//   rule-of-three-player  + snake-box-3   16
+//   rule-of-three-banker  + snake-box-3   16
+//
+// Everything else is impossible. The Wiener patterns and Snake/Box-2 all end
+// on a break -- trailing transitions R,R,O or R,O,R -- while rule-of-three
+// needs R,R (three of a kind) or O,O,O (three switches). They cannot overlap.
+// Snake/Box-3 is the one exception: OORRORR ends R,R, which IS three of a
+// kind, so it alone meets rule-of-three-player and -banker.
+//
+// Two things follow. Every supplied rule's only regular opponent is `pattern`,
+// the weakest of the originals. And the Snake/Box-3 clash covers 16 of 4,096
+// histories, so its head-to-head record accumulates about ten times slower
+// than the rest and will sit on the overall-rate fallback for a long while.
 export const RULES = [
     ruleOfThree(
         'rule-of-three-player',
