@@ -56,13 +56,18 @@ export const useDecisionLog = (apiUrl) => {
         if (log.length > 0) { fetchedRemote.current = true; return; }
         fetchedRemote.current = true;
 
-        let cancelled = false;
+        // No cancel-on-cleanup flag here, deliberately. StrictMode runs an
+        // effect twice in development: the first pass starts the fetch, its
+        // cleanup would set the flag, the second pass returns on the ref guard,
+        // and the response that does arrive gets thrown away -- which is
+        // exactly what happened. The ref alone stops a second request, and
+        // setting state after an unmount is harmless in React 18.
         (async () => {
             try {
                 const response = await fetch(`${apiUrl}/predictions?limit=50000`);
                 if (!response.ok) throw new Error(`Server returned ${response.status}`);
                 const rows = await response.json();
-                if (cancelled || !Array.isArray(rows) || rows.length === 0) return;
+                if (!Array.isArray(rows) || rows.length === 0) return;
                 // Marked synced: they came from the server, so pushing them
                 // straight back would be a round trip for nothing.
                 setLog(rows.map((r) => ({ ...fromServerRow(r), synced: true })));
@@ -71,7 +76,6 @@ export const useDecisionLog = (apiUrl) => {
                 console.error('Could not fetch the decision log from the server.', error);
             }
         })();
-        return () => { cancelled = true; };
     }, [apiUrl, log.length]);
 
     const append = useCallback((entry) => {

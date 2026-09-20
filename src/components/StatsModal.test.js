@@ -5,7 +5,7 @@
 // no data, a middling result that should NOT look like success, and a log
 // spanning two engine versions.
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import StatsModal from './StatsModal';
 import { ENGINE_VERSION } from '../engine/predict';
 
@@ -212,5 +212,79 @@ describe('the clash table', () => {
         );
         render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
         expect(document.body.textContent).toMatch(/even/);
+    });
+});
+
+describe('a panel that fits on a phone', () => {
+    it('puts the long content in its own scrolling region', () => {
+        const log = Array.from({ length: 40 }, (_, i) => entry(i + 1, 'B', 'B'));
+        const { container } = render(
+            <StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />
+        );
+        const body = container.querySelector('.stats-modal-body');
+        expect(body).not.toBeNull();
+        // The heading and close button sit outside it, so they stay put.
+        expect(body.querySelector('.stats-close-button')).toBeNull();
+        expect(body.querySelector('h2')).toBeNull();
+        expect(container.querySelector('.stats-close-button')).not.toBeNull();
+    });
+
+    it('keeps the download and import controls inside the scrolling region', () => {
+        const log = Array.from({ length: 40 }, (_, i) => entry(i + 1, 'B', 'B'));
+        const { container } = render(
+            <StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />
+        );
+        const body = container.querySelector('.stats-modal-body');
+        expect(body.textContent).toMatch(/Download decision log/);
+    });
+});
+
+describe('the help view', () => {
+    const someLog = Array.from({ length: 40 }, (_, i) => entry(i + 1, 'B', 'B'));
+    const open = () => render(
+        <StatsModal tallies={tallies} log={someLog} card="Tonight" onClose={noop} onExportLog={noop} />
+    );
+
+    it('starts on the statistics, not the help', () => {
+        const { container } = open();
+        expect(container.querySelector('h2').textContent).toBe('Statistics');
+    });
+
+    it('swaps to the help and back', () => {
+        const { container } = open();
+        const help = container.querySelector('.stats-help-button');
+
+        fireEvent.click(help);
+        expect(container.querySelector('h2').textContent).toBe('What these mean');
+        expect(container.querySelector('.stats-help')).not.toBeNull();
+
+        fireEvent.click(container.querySelector('.stats-help-button'));
+        expect(container.querySelector('h2').textContent).toBe('Statistics');
+    });
+
+    it('explains every section of the panel', () => {
+        const { container } = open();
+        fireEvent.click(container.querySelector('.stats-help-button'));
+        const text = container.textContent;
+        ['This card', 'Predictions', 'Compared with betting blind', 'By rule',
+         'When rules disagree', 'By C-Level', 'By pattern', 'Log'].forEach((heading) => {
+            expect(text).toContain(heading);
+        });
+    });
+
+    it('explains the headers people actually misread', () => {
+        const { container } = open();
+        fireEvent.click(container.querySelector('.stats-help-button'));
+        const text = container.textContent;
+        expect(text).toMatch(/51\.28%/);              // Banker break-even, not 50%
+        expect(text).toMatch(/Per unit staked/);
+        expect(text).toMatch(/range/i);
+        expect(text).toMatch(/backwards/);            // the C-Level inversion
+    });
+
+    it('leaves the close button reachable from the help', () => {
+        const { container } = open();
+        fireEvent.click(container.querySelector('.stats-help-button'));
+        expect(container.querySelector('.stats-close-button')).not.toBeNull();
     });
 });

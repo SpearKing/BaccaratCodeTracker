@@ -1,10 +1,11 @@
 // src/components/StatsModal.js
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { summarise, beatsBreakEven, wilsonInterval } from '../engine/stats';
 import { dedupe, byEngine } from '../engine/decisionLog';
 import { recordsFrom, headToHeadFrom, MIN_FIRINGS } from '../engine/arbitrate';
 import { ENGINE_VERSION } from '../engine/predict';
 import { RULES } from '../engine/rules';
+import StatsHelp from './StatsHelp';
 
 const pct = (x) => (x === null || x === undefined ? '--' : `${(x * 100).toFixed(1)}%`);
 const signed = (x) => (x === null || x === undefined ? '--' : `${x >= 0 ? '+' : ''}${x.toFixed(3)}`);
@@ -32,6 +33,7 @@ const Verdict = ({ tally: t }) => {
 };
 
 const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError, onExportLog, onImportLog, onClose }) => {
+    const [showHelp, setShowHelp] = useState(false);
     const entries = useMemo(() => dedupe(log || []), [log]);
 
     // Never average two engines together. Only the current one is scored.
@@ -87,7 +89,22 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
         <div className="stats-modal-overlay" onClick={onClose}>
             <div className="stats-modal-content" onClick={(e) => e.stopPropagation()}>
                 <button className="stats-close-button" onClick={onClose}>&times;</button>
-                <h2>Statistics</h2>
+                <button
+                    className="stats-help-button"
+                    aria-label={showHelp ? 'Back to the statistics' : 'What do these mean?'}
+                    title={showHelp ? 'Back to the statistics' : 'What do these mean?'}
+                    onClick={() => setShowHelp((v) => !v)}
+                >
+                    {showHelp ? '\u2190' : '?'}
+                </button>
+                <h2>{showHelp ? 'What these mean' : 'Statistics'}</h2>
+
+                {/* Only the body scrolls, so the heading and the close button
+                    stay put. The panel has grown a lot -- baselines, per-rule
+                    records, the clash table -- and had no max height at all,
+                    so on a phone the lower half was simply unreachable. */}
+                <div className="stats-modal-body">
+                {showHelp ? <StatsHelp /> : <>
 
                 {/* ---- This card ------------------------------------------ */}
                 <h3>This card</h3>
@@ -347,6 +364,8 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                         onChange={(e) => { onImportLog?.(e.target.files?.[0]); e.target.value = ''; }}
                     />
                 </label>
+                </>}
+                </div>
             </div>
         </div>
     );
