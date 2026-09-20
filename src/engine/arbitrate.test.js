@@ -2,7 +2,7 @@
 
 import {
     arbitrate, recordsFrom, weightFor, NO_RECORD_WEIGHT,
-    headToHeadFrom, headToHeadRate,
+    headToHeadFrom, headToHeadRate, applyToRecords, applyToHeadToHead,
 } from './arbitrate';
 import { ENGINE_VERSION } from './version';
 
@@ -204,5 +204,38 @@ describe('head-to-head records', () => {
         const records = recordsOf({ alpha: { n: 500, correct: 300 }, gamma: { n: 500, correct: 200 } });
         const r = arbitrate([cand('alpha', 'P'), cand('gamma', 'B')], records, new Map());
         expect(r.winner).toBe('alpha');
+    });
+});
+
+describe('test hands stay out of the engine memory', () => {
+    const played = (mode, call, actual) => here({
+        mode, actual, candidates: [{ id: 'alpha', call }, { id: 'beta', call: call === 'P' ? 'B' : 'P' }],
+    });
+
+    it('keeps test hands out of rule records', () => {
+        const r = recordsFrom([
+            played(undefined, 'P', 'P'),
+            played('test', 'P', 'P'),
+            played('test', 'P', 'P'),
+        ]);
+        expect(r.get('alpha')).toEqual({ n: 1, correct: 1 });
+    });
+
+    it('keeps test hands out of head-to-head records', () => {
+        const pairs = headToHeadFrom([
+            played(undefined, 'P', 'P'),
+            played('test', 'P', 'P'),
+        ]);
+        expect(pairs.get('alpha|beta').n).toBe(1);
+    });
+
+    it('keeps them out of the incremental path too', () => {
+        const records = new Map();
+        applyToRecords(records, played('test', 'P', 'P'));
+        expect(records.size).toBe(0);
+
+        const pairs = new Map();
+        applyToHeadToHead(pairs, played('test', 'P', 'P'));
+        expect(pairs.size).toBe(0);
     });
 });

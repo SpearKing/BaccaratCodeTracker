@@ -31,7 +31,7 @@ const Verdict = ({ tally: t }) => {
     return <span className="verdict-unknown">indistinguishable from chance</span>;
 };
 
-const StatsModal = ({ tallies, log, card, pendingSync, syncError, onExportLog, onClose }) => {
+const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError, onExportLog, onClose }) => {
     const entries = useMemo(() => dedupe(log || []), [log]);
 
     // Never average two engines together. Only the current one is scored.
@@ -316,6 +316,12 @@ const StatsModal = ({ tallies, log, card, pendingSync, syncError, onExportLog, o
 
                 {/* ---- Log housekeeping ----------------------------------- */}
                 <h3>Log</h3>
+                {testCount > 0 && (
+                    <p className="stat-note">
+                        {testCount.toLocaleString()} test {testCount === 1 ? 'hand is' : 'hands are'} excluded
+                        from everything above, and from what the engine learns.
+                    </p>
+                )}
                 <p className="stat-note">
                     {entries.length.toLocaleString()} decisions recorded
                     {pendingSync > 0 && ` · ${pendingSync} waiting to sync`}

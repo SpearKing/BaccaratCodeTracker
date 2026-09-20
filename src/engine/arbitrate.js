@@ -60,6 +60,10 @@ export const recordsFrom = (log, engine = ENGINE_VERSION) => {
         // candidates were logged carry none, so they were already skipped --
         // but by accident rather than on purpose, which is not a guarantee.
         if (engine && entry.engine !== engine) return;
+        // Test hands never reach the engine's memory. Filtered here as well as
+        // at the call site, because a reader that forgets is exactly how the
+        // engine-version leak nearly happened.
+        if (entry.mode === 'test') return;
         if (entry.actual !== 'P' && entry.actual !== 'B') return;   // ties push
         (entry.candidates || []).forEach(({ id, call }) => {
             if (call !== 'P' && call !== 'B') return;
@@ -92,6 +96,7 @@ export const headToHeadFrom = (log, engine = ENGINE_VERSION) => {
 export const applyToHeadToHead = (pairs, entry, engine = ENGINE_VERSION) => {
     if (!entry || (entry.actual !== 'P' && entry.actual !== 'B')) return pairs;
     if (engine && entry.engine !== engine) return pairs;
+    if (entry.mode === 'test') return pairs;
 
     const called = (entry.candidates || []).filter((c) => c.call === 'P' || c.call === 'B');
     for (let i = 0; i < called.length; i++) {
@@ -128,6 +133,7 @@ export const headToHeadRate = (pairs, id, opponentId, minFirings = MIN_FIRINGS) 
 export const applyToRecords = (records, entry, engine = ENGINE_VERSION) => {
     if (!entry || (entry.actual !== 'P' && entry.actual !== 'B')) return records;
     if (engine && entry.engine !== engine) return records;
+    if (entry.mode === 'test') return records;
     (entry.candidates || []).forEach(({ id, call }) => {
         if (call !== 'P' && call !== 'B') return;
         if (!records.has(id)) records.set(id, { n: 0, correct: 0 });

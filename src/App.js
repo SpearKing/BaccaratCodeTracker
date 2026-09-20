@@ -6,6 +6,7 @@ import { useAnalytics } from './hooks/useAnalytics';
 import { useScorecardLogic } from './hooks/useScorecardLogic';
 import { useGameManagement } from './hooks/useGameManagement';
 import { useDecisionLog } from './hooks/useDecisionLog';
+import { useTestMode } from './hooks/useTestMode';
 import { usePrediction } from './hooks/usePrediction';
 import ScorecardGrid from './components/ScorecardGrid';
 import ControlPanel from './components/ControlPanel';
@@ -13,6 +14,7 @@ import StealthModeView from './components/StealthModeView';
 import StatsModal from './components/StatsModal';
 import { confidenceCalibration } from './engine/stats';
 import { recordsFrom, headToHeadFrom } from './engine/arbitrate';
+import { liveEntries, testEntries } from './engine/decisionLog';
 import { handsFromGrid } from './engine/grid';
 import { API_URL } from './utils/constants';
 
@@ -22,6 +24,12 @@ function App() {
     const [showStats, setShowStats] = useState(false);
 
     const { log, append: appendDecision, pendingSync, syncError } = useDecisionLog(API_URL);
+    const { testMode, setTestMode } = useTestMode();
+
+    // Everything the engine learns from, and everything the headline numbers
+    // report, comes from real play only.
+    const live = useMemo(() => liveEntries(log), [log]);
+    const testCount = useMemo(() => testEntries(log).length, [log]);
 
     // App owns the ONLY analytics instance and the ONLY prediction, and feeds
     // both to the logger through refs. The refs are what break the cycle --
@@ -46,7 +54,7 @@ function App() {
         scorecard, lastWinType, lastWinRow, lastPlayedRow,
         handleCellClick, resetScorecard, deleteRow, recordTie,
         loadHands, restoredFromLocal, maxRenderableColumns,
-    } = useScorecardLogic(handleDecision, getPrediction, cardNameForCard);
+    } = useScorecardLogic(handleDecision, getPrediction, cardNameForCard, testMode);
 
     // The hands are what gets stored, locally and on the server. The board is
     // rebuilt from them, so nothing else needs keeping.
@@ -80,15 +88,15 @@ function App() {
 
     // What each C-Level has actually been worth, measured from this player's
     // own log rather than asserted.
-    const calibration = useMemo(() => confidenceCalibration(log), [log]);
+    const calibration = useMemo(() => confidenceCalibration(live), [live]);
 
     // Each rule's track record. The log only ever holds hands already played,
     // so a rule's weight can never be influenced by the hand it is calling.
-    const records = useMemo(() => recordsFrom(log), [log]);
+    const records = useMemo(() => recordsFrom(live), [live]);
 
     // How rules have fared against each other specifically, which is what
     // settles a conflict when the pair has clashed often enough.
-    const pairs = useMemo(() => headToHeadFrom(log), [log]);
+    const pairs = useMemo(() => headToHeadFrom(live), [live]);
 
     const { result: predictionResult, predictedWinType, confidenceLevel } =
         usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells, records, pairs);
@@ -122,6 +130,14 @@ function App() {
 
     return (
         <div className={`app-container ${isStealthMode ? 'stealth-active' : ''}`}>
+            {/* Loud on purpose. The likeliest mistake with a mode like this is
+                forgetting which one you are in, and recording a real shoe that
+                never counts is worse than the problem it solves. */}
+            {testMode && (
+                <div className="test-mode-banner">
+                    TEST MODE — these hands do not count
+                </div>
+            )}
             <div className="main-view">
                 <ControlPanel
                     onStealthClick={handleEnterStealthMode}
@@ -129,6 +145,7 @@ function App() {
                     showControls={showControls} setShowControls={setShowControls}
                     isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
                     showAnalytics={showAnalytics} setShowAnalytics={setShowAnalytics}
+                    testMode={testMode} setTestMode={setTestMode}
                     handleFullReset={handleFullReset}
                     recordTie={recordTie}
                     predictedWinType={predictedWinType} confidenceLevel={confidenceLevel}
@@ -143,12 +160,13 @@ function App() {
                 />
             </div>
 
-            {isStealthMode && ( <StealthModeView onExit={() => setIsStealthMode(false)} scorecard={scorecard} lastWinRow={lastWinRow} lastPlayedRow={lastPlayedRow} handleCellClick={handleCellClick} recordTie={recordTie} highlightedCells={highlightedCells} calibration={calibration} /> )}
+            {isStealthMode && ( <StealthModeView onExit={() => setIsStealthMode(false)} scorecard={scorecard} lastWinRow={lastWinRow} lastPlayedRow={lastPlayedRow} handleCellClick={handleCellClick} recordTie={recordTie} highlightedCells={highlightedCells} calibration={calibration} testMode={testMode} /> )}
 
             {showStats && (
                 <StatsModal
                     tallies={tallies}
-                    log={log}
+                    log={live}
+                    testCount={testCount}
                     card={gameManagement.currentScorecardName}
                     pendingSync={pendingSync}
                     syncError={syncError}

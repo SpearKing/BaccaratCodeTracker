@@ -8,6 +8,7 @@ const ControlPanel = ({
     showControls, setShowControls,
     isDarkMode, setIsDarkMode,
     showAnalytics, setShowAnalytics,
+    testMode, setTestMode,
     currentScorecardName,
     saveGameInput, setSaveGameInput,
     saveDate, setSaveDate,
@@ -88,6 +89,10 @@ const ControlPanel = ({
                 <div className="toggle-switch-container">
                     <span>Dark Mode</span>
                     <label className="toggle-switch"> <input type="checkbox" checked={isDarkMode} onChange={() => setIsDarkMode(!isDarkMode)} /> <span className="slider round"></span> </label>
+                </div>
+                <div className="toggle-switch-container">
+                    <span>Test mode</span>
+                    <label className="toggle-switch"> <input type="checkbox" checked={testMode} onChange={() => setTestMode(!testMode)} /> <span className="slider round"></span> </label>
                 </div>
                 <div className="toggle-switch-container">
                     <span>Analytics</span>

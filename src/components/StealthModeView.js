@@ -23,6 +23,7 @@ const StealthModeView = ({
     recordTie,
     highlightedCells,
     calibration,
+    testMode,
 }) => {
     // Bounded by the last row holding anything, ties included -- not by the
     // last DECIDED row. Using lastWinRow here meant that after a tie the
@@ -61,6 +62,7 @@ const StealthModeView = ({
 
     return (
         <div className="stealth-mode-overlay">
+            {testMode && <div className="stealth-test-marker">TEST</div>}
             <div className="stealth-exit-button" onClick={onExit}>
                 <StealthIcon className="stealth-icon" />
             </div>

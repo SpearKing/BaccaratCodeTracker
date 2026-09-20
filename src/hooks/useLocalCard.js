@@ -13,11 +13,15 @@
 import { toStored, fromStored } from '../engine/cardFormat';
 
 export const LOCAL_CARD_KEY = 'baccarat_live_card';
+/** Test play gets its own slot, so trying something out cannot clobber a real shoe. */
+export const TEST_CARD_KEY = 'baccarat_test_card';
+
+const keyFor = (testMode) => (testMode ? TEST_CARD_KEY : LOCAL_CARD_KEY);
 
 /** Saves the live card. Called on every change; a few hundred bytes. */
-export const saveLocalCard = (hands, cardName) => {
+export const saveLocalCard = (hands, cardName, testMode = false) => {
     try {
-        localStorage.setItem(LOCAL_CARD_KEY, JSON.stringify(toStored(hands, { card: cardName ?? null })));
+        localStorage.setItem(keyFor(testMode), JSON.stringify(toStored(hands, { card: cardName ?? null })));
         return true;
     } catch (error) {
         // Quota, or storage disabled. The card is still in memory; say so
@@ -28,9 +32,9 @@ export const saveLocalCard = (hands, cardName) => {
 };
 
 /** The live card, or null when this device has never held one. */
-export const loadLocalCard = () => {
+export const loadLocalCard = (testMode = false) => {
     try {
-        const raw = localStorage.getItem(LOCAL_CARD_KEY);
+        const raw = localStorage.getItem(keyFor(testMode));
         if (!raw) return null;
         const data = JSON.parse(raw);
         const hands = fromStored(data);
@@ -44,9 +48,9 @@ export const loadLocalCard = () => {
     }
 };
 
-export const clearLocalCard = () => {
+export const clearLocalCard = (testMode = false) => {
     try {
-        localStorage.removeItem(LOCAL_CARD_KEY);
+        localStorage.removeItem(keyFor(testMode));
     } catch (error) {
         console.error('Could not clear the local card.', error);
     }

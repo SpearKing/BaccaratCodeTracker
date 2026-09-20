@@ -152,3 +152,10 @@ input:checked + .slider:before { transform: translateX(22px); }
     .scorecard-grid.analytics-off .grid-cell.p-column,
     .scorecard-grid.analytics-off .grid-cell.b-column { width: 56px; min-width: 56px; }
 }
+
+.test-mode-banner { position: sticky; top: 0; z-index: 20; text-align: center; font-weight: bold; font-size: 0.85em; letter-spacing: 0.06em; padding: 6px 8px; color: var(--button-reset-text); background-color: var(--button-reset-bg); }
+/* Stealth hides the full banner but must not hide the fact. See the
+   compact marker in StealthModeView -- being discreet matters less than
+   knowing whether the hand you are about to record counts. */
+.stealth-active .test-mode-banner { display: none; }
+.stealth-test-marker { position: absolute; top: 14px; left: 0; right: 0; text-align: center; font-size: 0.75em; font-weight: bold; letter-spacing: 0.12em; color: var(--button-reset-bg); opacity: 0.85; }

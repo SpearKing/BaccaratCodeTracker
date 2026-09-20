@@ -20,7 +20,7 @@ import { saveLocalCard, loadLocalCard } from './useLocalCard';
  * instance. It is read at the moment a hand is recorded, so the log stores what
  * was genuinely on screen beforehand.
  */
-export const useScorecardLogic = (onDecision, getPrediction, cardName) => {
+export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode = false) => {
     const [scorecard, setScorecard] = useState(createInitialScorecard);
     const [lastWinType, setLastWinType] = useState(null);
     const [lastWinRow, setLastWinRow] = useState(-1);
@@ -31,15 +31,28 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName) => {
     // a localStorage key that nothing had written since scorecards moved to the
     // server, so it never fired and every reload came back to a blank card.
     useEffect(() => {
-        const local = loadLocalCard();
+        const local = loadLocalCard(testMode);
         hasRestored.current = true;
-        if (!local) return;   // never played here; the server fallback takes over
+
+        if (!local) {
+            // Nothing stored for this mode. On the first run that means the
+            // server fallback should take over; on a mode switch it means the
+            // board must clear, because leaving the other mode's card up is how
+            // you end up playing test hands onto a live shoe.
+            setScorecard(createInitialScorecard());
+            setLastWinType(null);
+            setLastWinRow(-1);
+            return;
+        }
+
         setRestoredFromLocal(true);
         const restored = stateFromHands(local.hands);
         setScorecard(restored.scorecard);
         setLastWinType(restored.lastWinType);
         setLastWinRow(restored.lastWinRow);
-    }, []);
+        // Re-runs when the mode changes, which is what swaps the board between
+        // the live card and the test card.
+    }, [testMode]);
 
     const maxRenderableColumns = useMemo(() => { let maxContentColIndex = 3 + NUM_INITIAL_COLUMNS - 1; if (scorecard) { scorecard.forEach(row => { for (let i = 3; i < row.length; i++) { if (row[i].displayValue !== '' || row[i].value !== null) { maxContentColIndex = Math.max(maxContentColIndex, i); } } }); } return maxContentColIndex + 1; }, [scorecard]);
     
@@ -53,8 +66,8 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName) => {
     // few hundred bytes to localStorage.
     useEffect(() => {
         if (!hasRestored.current) return;   // don't overwrite a restore with the blank initial state
-        saveLocalCard(handsFromGrid(scorecard), cardName);
-    }, [scorecard, cardName]);
+        saveLocalCard(handsFromGrid(scorecard), cardName, testMode);
+    }, [scorecard, cardName, testMode]);
 
 
     /**
@@ -71,8 +84,9 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName) => {
             prediction: getPrediction ? getPrediction() : null,
             actual,
             hands: handsAfter,
+            mode: testMode ? 'test' : undefined,
         }));
-    }, [onDecision, getPrediction]);
+    }, [onDecision, getPrediction, testMode]);
     
     const handleCellClick = useCallback((rowIdx, colIdx) => {
         if (rowIdx === 0) return;

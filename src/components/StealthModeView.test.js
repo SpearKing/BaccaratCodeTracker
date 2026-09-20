@@ -128,3 +128,24 @@ describe('a card whose last entry is a tie', () => {
         expect(line(container)).toBe('B');
     });
 });
+
+describe('test mode', () => {
+    const showWith = (testMode) =>
+        render(
+            <StealthModeView
+                onExit={noop} scorecard={grid} lastWinRow={hands.length} lastPlayedRow={hands.length}
+                handleCellClick={noop} recordTie={noop} highlightedCells={highlights_}
+                calibration={new Map()} testMode={testMode}
+            />
+        );
+
+    it('marks the at-table screen so you cannot forget which mode you are in', () => {
+        const { container } = showWith(true);
+        expect(container.querySelector('.stealth-test-marker')).not.toBeNull();
+    });
+
+    it('shows nothing extra during real play', () => {
+        const { container } = showWith(false);
+        expect(container.querySelector('.stealth-test-marker')).toBeNull();
+    });
+});

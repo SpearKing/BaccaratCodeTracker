@@ -49,7 +49,7 @@ export const historyBefore = (hands, handIndex, length = HISTORY_LENGTH) => {
  * including the case where it had no opinion -- those are kept, because
  * coverage is part of what is being measured.
  */
-export const makeEntry = ({ card, handIndex, prediction, actual, hands, at }) => ({
+export const makeEntry = ({ card, handIndex, prediction, actual, hands, at, mode }) => ({
     v: LOG_SCHEMA_VERSION,
     engine: ENGINE_VERSION,
     card: card || null,
@@ -66,7 +66,18 @@ export const makeEntry = ({ card, handIndex, prediction, actual, hands, at }) =>
     actual,
     history: historyBefore(hands, handIndex),
     at: at || new Date().toISOString(),
+    // 'test' marks a hand played to try something out. Such entries are kept
+    // -- discarding them would make an accidental test session unrecoverable --
+    // but every reader excludes them, so they never reach the engine's memory
+    // or the headline numbers.
+    ...(mode === 'test' ? { mode: 'test' } : {}),
 });
+
+/** Real play. This is what the engine learns from and what the stats report. */
+export const liveEntries = (log) => (log || []).filter((e) => e.mode !== 'test');
+
+/** Hands played in test mode, kept separate rather than thrown away. */
+export const testEntries = (log) => (log || []).filter((e) => e.mode === 'test');
 
 /**
  * Drops duplicate records for the same hand, keeping the most recent.
