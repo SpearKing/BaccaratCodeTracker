@@ -13,14 +13,16 @@ import { predictNextHand } from '../engine/predict';
  * fields on the way through is how the log ended up recording "no opinion" for
  * every hand the first time round.
  *
+ * `records` is each rule's track record, from the log. It decides conflicts.
+ *
  * `lastWinType` is no longer needed -- the engine reads the winner off the row
  * -- but it stays in the signature because callers already pass it, and
  * removing it is Phase 3's business.
  */
-export const usePrediction = (scorecard, lastWinType, lastWinRow, highlightedCells) => {
+export const usePrediction = (scorecard, lastWinType, lastWinRow, highlightedCells, records) => {
     const result = useMemo(
-        () => predictNextHand(scorecard, highlightedCells, lastWinRow),
-        [scorecard, lastWinRow, highlightedCells]
+        () => predictNextHand(scorecard, highlightedCells, lastWinRow, records),
+        [scorecard, lastWinRow, highlightedCells, records]
     );
 
     return {

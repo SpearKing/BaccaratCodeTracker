@@ -12,6 +12,7 @@ import ControlPanel from './components/ControlPanel';
 import StealthModeView from './components/StealthModeView';
 import StatsModal from './components/StatsModal';
 import { confidenceCalibration } from './engine/stats';
+import { recordsFrom } from './engine/arbitrate';
 import { API_URL } from './utils/constants';
 
 function App() {
@@ -73,8 +74,12 @@ function App() {
     // own log rather than asserted.
     const calibration = useMemo(() => confidenceCalibration(log), [log]);
 
+    // Each rule's track record. The log only ever holds hands already played,
+    // so a rule's weight can never be influenced by the hand it is calling.
+    const records = useMemo(() => recordsFrom(log), [log]);
+
     const { result: predictionResult, predictedWinType, confidenceLevel } =
-        usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells);
+        usePrediction(scorecard, lastWinType, lastWinRow, highlightedCells, records);
 
     // Kept current during render so the event handlers below log exactly what
     // the screen is showing at that moment.

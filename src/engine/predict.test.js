@@ -71,10 +71,15 @@ describe('predictNextHand', () => {
     });
 });
 
-describe('measured behaviour of the current rules', () => {
-    // Established by replaying ~100k simulated hands: the prediction is fully
-    // determined by the last three hands. This table reproduced the engine on
-    // 40,200/40,200 decisions. If this test fails, that property changed.
+describe('measured behaviour of the original two rules', () => {
+    // Established by replaying ~100k simulated hands BEFORE the supplied rules
+    // were added: on boards where only the original rules fire, the call is
+    // fully determined by the last three hands, and this table reproduced the
+    // engine on 40,200/40,200 decisions.
+    //
+    // It is no longer a full characterisation of the engine -- the supplied
+    // rules do not fire on these short padded boards, which is why it still
+    // holds. The block below covers the boards where they do.
     const TABLE = {
         OOO: 'switch', OOR: 'switch', ORO: 'repeat', ORR: 'repeat',
         ROO: 'repeat', ROR: 'switch', RRO: 'repeat', RRR: 'repeat',
@@ -133,5 +138,70 @@ describe('ties', () => {
     it('declines to predict on a card holding only ties', () => {
         const grid = deriveGrid(['T', 'T'], 20);
         expect(predictNextHand(grid, new Map(), 2).prediction).toBeNull();
+    });
+});
+
+describe('the supplied rules, through the predictor', () => {
+    // Builds hands whose trailing transitions are exactly `transitions`.
+    const boardFor = (transitions, first = 'P') => {
+        const hands = [first];
+        transitions.split('').forEach((t) => {
+            const prev = hands[hands.length - 1];
+            hands.push(t === 'R' ? prev : prev === 'P' ? 'B' : 'P');
+        });
+        const grid = deriveGrid(hands, hands.length + 5);
+        return { hands, grid, hl: computeHighlights(grid, grid[0].length) };
+    };
+
+    const ask = (transitions, first, records) => {
+        const { hands, grid, hl } = boardFor(transitions, first);
+        return { ...predictNextHand(grid, hl, hands.length, records), hands };
+    };
+
+    it.each([
+        ['wiener-3', 'RO' + 'OORRO'],
+        ['wiener-4', 'RO' + 'OORRRO'],
+        ['wiener-5', 'RO' + 'OORRRRO'],
+        ['snake-box-2', 'RO' + 'OOROR'],
+        ['snake-box-3', 'RO' + 'OORRORR'],
+    ])('%s fires on its own board and calls the opposite', (id, transitions) => {
+        ['P', 'B'].forEach((first) => {
+            const r = ask(transitions, first, new Map());
+            expect(r.candidates.map((c) => c.id)).toContain(id);
+            const fired = r.candidates.find((c) => c.id === id);
+            // Every supplied rule calls the opposite of the last hand.
+            expect(fired.call).toBe(r.hands[r.hands.length - 1] === 'P' ? 'B' : 'P');
+        });
+    });
+
+    it('flags the Snake/Box-3 clash with the Rule of Three', () => {
+        const r = ask('RO' + 'OORRORR', 'P', new Map());
+        const ids = r.candidates.map((c) => c.id);
+        expect(ids).toContain('snake-box-3');
+        expect(ids.some((i) => i.startsWith('rule-of-three'))).toBe(true);
+        expect(r.contested).toBe(true);
+    });
+
+    it('hands a contested call to whichever rule has the better record', () => {
+        const transitions = 'RO' + 'OORRORR';
+        const cold = ask(transitions, 'P', new Map());
+
+        // Give the Rule of Three a strong record and Snake/Box-3 a poor one.
+        const records = new Map([
+            ['rule-of-three-player', { n: 600, correct: 350 }],
+            ['snake-box-3', { n: 600, correct: 250 }],
+        ]);
+        const warm = ask(transitions, 'P', records);
+
+        expect(cold.source).toBe('snake-box-3');          // no record: specificity decides
+        expect(warm.source).toBe('rule-of-three-player'); // record overrides it
+        expect(warm.prediction).not.toBe(cold.prediction);
+    });
+
+    it('does not let an unproven rule outrank a proven one', () => {
+        const records = new Map([['pattern', { n: 800, correct: 430 }]]);
+        const r = ask('RO' + 'OORRORR', 'P', records);
+        // snake-box-3 has no record, so the proven rule takes it.
+        expect(r.source).toBe('pattern');
     });
 });

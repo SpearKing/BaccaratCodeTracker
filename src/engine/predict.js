@@ -1,31 +1,32 @@
 // src/engine/predict.js
 //
-// The prediction rules, extracted so that the main view and stealth mode share
-// one implementation. Before this existed, StealthModeView carried its own copy
-// that omitted the Rule of Three, so the two screens disagreed on roughly 37%
-// of hands -- and because the Rule of Three inverts the pattern rule every time
-// it fires, they disagreed by predicting opposite sides.
+// Collects every rule that has an opinion on the board and settles between
+// them on track record. The rules live in rules.js; the settling is in
+// arbitrate.js.
 //
-// This is a behaviour-preserving extraction of the MAIN view's logic. Stealth
-// mode now matches it, which means stealth predictions changed.
+// This replaced a chain of `if` statements where the order of writing decided
+// every conflict. The Rule of Three won whenever it fired -- 37% of hands,
+// contradicting the pattern rule on all of them -- purely because it was
+// checked first. Nobody had measured whether that was the right call.
 //
-// What these rules actually compute, measured over ~100k simulated hands:
-// the output is fully determined by the last three decided hands. predict.test.js
-// pins that as an executable table.
+// The rules themselves are unchanged. What changed is that a rule now has to
+// earn precedence, and that every firing rule is reported so the log can
+// record what each one would have done.
 
 import { ANALYTICS_PATTERNS } from '../utils/constants';
+import { handsFromGrid, isDecided } from './grid';
+import { firingRules } from './rules';
+import { arbitrate } from './arbitrate';
 
 /**
- * Identifies the rules that produced a prediction.
+ * Identifies the rules AND how they are settled between.
  *
- * Every logged decision carries this. Without it, the day the rules change the
- * accuracy history silently becomes a blend of two different engines and can
- * never be separated again. Bump it whenever the rules change in any way that
- * could alter an output.
+ * Bumped from 'rule-of-three+pattern@1': conflicts now go to the better track
+ * record rather than to whichever rule was written first, so outputs differ.
+ * Entries logged under the old version are scored separately and never blended
+ * with these.
  */
-export const ENGINE_VERSION = 'rule-of-three+pattern@1';
-
-const opposite = (winType) => (winType === 'P' ? 'B' : 'P');
+export const ENGINE_VERSION = 'arbitrated@2';
 
 /** Which side won on this row, or null if it has not been played. */
 export const winnerAtRow = (scorecard, rowIdx) => {
@@ -36,128 +37,68 @@ export const winnerAtRow = (scorecard, rowIdx) => {
     return null;
 };
 
+// The analytics pattern driving the rightmost highlight, kept so per-pattern
+// stats still mean something when the pattern rule is the one that wins.
+const drivingPattern = (scorecard, highlights, anchorRow) => {
+    const row = scorecard?.[anchorRow];
+    if (!row || !highlights) return null;
+    for (let c = row.length - 1; c >= 3; c--) {
+        if (highlights.has(`${anchorRow}-${c}`)) {
+            const name = highlights.get(`${anchorRow}-${c}`);
+            const def = ANALYTICS_PATTERNS.find((p) => p.name === name);
+            return def && def.isRepeating ? name : null;
+        }
+    }
+    return null;
+};
+
 /**
  * Predicts the hand that follows `rowIdx`.
  *
- * `rowIdx` is the last played row. Returns the prediction, the C-Level, and
- * which rule produced it -- the last of which is what the Phase 2 decision log
- * needs in order to tell the two rules apart after the fact.
+ * `records` is each rule's history, built from decisions BEFORE this one --
+ * see arbitrate.recordsFrom. Passing nothing simply means no rule has a record
+ * yet, which is the correct state on a fresh log.
  */
-export const predictNextHand = (scorecard, highlightedCells, rowIdx) => {
-    const none = { prediction: null, confidence: 0, source: null, pattern: null };
+export const predictNextHand = (scorecard, highlightedCells, rowIdx, records) => {
+    const none = {
+        prediction: null, confidence: 0, source: null, pattern: null,
+        candidates: [], contested: false,
+    };
 
     if (!scorecard || rowIdx === -1 || rowIdx === null || rowIdx === undefined) return none;
     if (!scorecard[rowIdx]) return none;
 
-    // A tie is not a result, so predictions are anchored to the most recent
-    // decided row at or above the one asked for.
+    // A tie is not a result, so predictions anchor to the most recent decided
+    // row at or above the one asked for.
     let anchorRow = rowIdx;
     while (anchorRow >= 1 && !winnerAtRow(scorecard, anchorRow)) anchorRow--;
     if (anchorRow < 1) return none;
 
-    const lastWinType = winnerAtRow(scorecard, anchorRow);
-    if (!lastWinType) return none;
-
     const highlights = highlightedCells ?? new Map();
+    const hands = handsFromGrid(scorecard).slice(0, anchorRow).filter(isDecided);
+    if (hands.length === 0) return none;
 
-    // The three most recent decided rows, newest first. Ties are stepped over,
-    // so a tie in the middle of a streak does not break the Rule of Three.
-    const recent = [];
-    for (let r = anchorRow; r >= 1 && recent.length < 3; r--) {
-        if (winnerAtRow(scorecard, r)) recent.push(r);
-    }
+    const context = { scorecard, highlights, anchorRow, hands };
+    const { call, winner, contested, candidates } = arbitrate(
+        firingRules(context),
+        records ?? new Map()
+    );
 
-    // --- Rule of Three -------------------------------------------------------
-    // Three of the same result, or three switches in a row, overrides everything
-    // below it.
-    if (recent.length === 3) {
-        const [lastRow, prevRow, twoRowsAgo] = recent.map((r) => scorecard[r]);
-
-        if (lastRow[0].value === 'O' && prevRow[0].value === 'O' && twoRowsAgo[0].value === 'O') {
-            return { prediction: 'P', confidence: 3, source: 'rule-of-three-player', pattern: null };
-        }
-        if (lastRow[1].value === 'O' && prevRow[1].value === 'O' && twoRowsAgo[1].value === 'O') {
-            return { prediction: 'B', confidence: 3, source: 'rule-of-three-banker', pattern: null };
-        }
-        if (
-            lastRow[2].displayValue === 'O' &&
-            prevRow[2].displayValue === 'O' &&
-            twoRowsAgo[2].displayValue === 'O'
-        ) {
-            return {
-                prediction: opposite(lastWinType),
-                confidence: 3,
-                source: 'rule-of-three-alternating',
-                pattern: null,
-            };
-        }
-    }
-
-    // --- Pattern rule --------------------------------------------------------
-    const currentRow = scorecard[anchorRow];
-
-    // Take the rightmost highlighted column. NOTE: because fresh columns are
-    // seeded at the right edge every row, this is on average the youngest
-    // column on the board (~2.4 hands old).
-    let lastHighlightedCol = -1;
-    let patternName = null;
-    for (let colIdx = currentRow.length - 1; colIdx >= 3; colIdx--) {
-        if (highlights.has(`${anchorRow}-${colIdx}`)) {
-            lastHighlightedCol = colIdx;
-            patternName = highlights.get(`${anchorRow}-${colIdx}`);
-            break;
-        }
-    }
-
-    let isNextRepeater = null;
-    let isNextOpposite = null;
-
-    if (lastHighlightedCol !== -1 && patternName !== null) {
-        const patternDef = ANALYTICS_PATTERNS.find((p) => p.name === patternName);
-        if (patternDef && patternDef.isRepeating) {
-            const n2Value = scorecard[anchorRow]?.[lastHighlightedCol]?.value;
-            let n1Value = null;
-
-            for (let row = anchorRow - 1; row >= 1; row--) {
-                if (highlights.get(`${row}-${lastHighlightedCol}`) === patternName) {
-                    const cellValue = scorecard[row]?.[lastHighlightedCol]?.value;
-                    if (typeof cellValue === 'number') {
-                        n1Value = cellValue;
-                        break;
-                    }
-                }
-            }
-
-            if (n1Value !== null && n2Value !== null && n2Value !== undefined) {
-                if (n2Value - 1 === n1Value) {
-                    isNextRepeater = true;
-                    isNextOpposite = false;
-                } else if (n2Value + 1 === n1Value) {
-                    isNextRepeater = false;
-                    isNextOpposite = true;
-                }
-            }
-        }
-    }
-
-    // C-Level is the count of highlighted cells on the row. Measured: this is
-    // ~97% determined by the same three hands as the prediction, and accuracy
-    // is flat across levels. Phase 3 replaces it with a calibrated probability.
+    // C-Level is still the count of highlighted cells on the row. Measured, it
+    // runs backwards -- higher levels verify less often -- so it is reported
+    // beside its own measured rate rather than as a claim. See stats.js.
     let confidence = 0;
-    for (let col = 3; col < currentRow.length; col++) {
+    const row = scorecard[anchorRow];
+    for (let col = 3; col < row.length; col++) {
         if (highlights.has(`${anchorRow}-${col}`)) confidence++;
     }
 
-    let prediction = null;
-    if (isNextRepeater) prediction = lastWinType;
-    else if (isNextOpposite) prediction = opposite(lastWinType);
-
     return {
-        prediction,
+        prediction: call,
         confidence,
-        source: prediction ? 'pattern' : null,
-        // Only the pattern that actually drove the call. The old stats credited
-        // every pattern active on the row, which made them uninterpretable.
-        pattern: prediction ? patternName : null,
+        source: winner,
+        pattern: winner === 'pattern' ? drivingPattern(scorecard, highlights, anchorRow) : null,
+        candidates,
+        contested,
     };
 };

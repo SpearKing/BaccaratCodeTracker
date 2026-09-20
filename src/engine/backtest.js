@@ -17,9 +17,16 @@ import { predictNextHand } from './predict';
 import { makeEntry } from './decisionLog';
 import { summarise } from './stats';
 import { createModel, predict, learn, callFor, logLoss, brier, BASE_PRIOR } from './model';
+import { applyToRecords } from './arbitrate';
 
-/** Reconstructs the decision log for one already-played card. */
-export const replayCard = (cardName, hands) => {
+/**
+ * Reconstructs the decision log for one already-played card.
+ *
+ * `records` carries each rule's track record. Pass the same map across cards
+ * to replay arbitration as it would really run: a rule's weight on any hand
+ * comes only from hands already seen, so nothing leaks backwards.
+ */
+export const replayCard = (cardName, hands, records = new Map()) => {
     const entries = [];
 
     deriveGrid(hands, hands.length + 5, ({ grid, rowIdx, hand, parentRowIdx }) => {
@@ -27,19 +34,20 @@ export const replayCard = (cardName, hands) => {
         // the predictor wants. Zero means nothing has been decided yet.
         const prediction =
             parentRowIdx > 0
-                ? predictNextHand(grid, computeHighlights(grid, grid[0].length), parentRowIdx)
+                ? predictNextHand(grid, computeHighlights(grid, grid[0].length), parentRowIdx, records)
                 : null;
 
-        entries.push(
-            makeEntry({
-                card: cardName,
-                handIndex: rowIdx,
-                prediction,
-                actual: hand,
-                hands,
-                at: null,
-            })
-        );
+        const entry = makeEntry({
+            card: cardName,
+            handIndex: rowIdx,
+            prediction,
+            actual: hand,
+            hands,
+            at: null,
+        });
+
+        entries.push(entry);
+        applyToRecords(records, entry);
     });
 
     return entries;
@@ -49,6 +57,8 @@ export const replayCard = (cardName, hands) => {
 export const replaySavedCards = (games, { minHands = 1 } = {}) => {
     const perCard = [];
     let entries = [];
+    // Shared so records accumulate across cards, as they do in real play.
+    const records = new Map();
 
     Object.keys(games || {}).forEach((name) => {
         const scorecard = games[name]?.scorecard;
@@ -58,12 +68,12 @@ export const replaySavedCards = (games, { minHands = 1 } = {}) => {
         const decided = hands.filter((h) => h === 'P' || h === 'B').length;
         if (decided < minHands) return;
 
-        const cardEntries = replayCard(name, hands);
+        const cardEntries = replayCard(name, hands, records);
         perCard.push({ name, hands: hands.length, decided, entries: cardEntries.length });
         entries = entries.concat(cardEntries);
     });
 
-    return { entries, perCard, summary: summarise(entries) };
+    return { entries, perCard, records, summary: summarise(entries) };
 };
 
 /** Saved cards as ordered hand sequences, oldest card first. */

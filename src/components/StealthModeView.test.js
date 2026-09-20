@@ -7,13 +7,15 @@ import { render } from '@testing-library/react';
 import StealthModeView from './StealthModeView';
 import { deriveGrid } from '../engine/grid';
 import { computeHighlights } from '../engine/analytics';
+import { predictNextHand } from '../engine/predict';
 
 const noop = () => {};
 
 // A card ending in three Bankers, so the Rule of Three calls Banker next.
 const hands = ['P', 'B', 'B', 'B'];
 const grid = deriveGrid(hands, 20);
-const highlights = computeHighlights(grid, grid[0].length);
+const highlights_ = computeHighlights(grid, grid[0].length);
+const highlights = highlights_;
 
 const show = (calibration) =>
     render(
@@ -37,22 +39,29 @@ const tiedGrid = deriveGrid(tiedHands, 20);
 const line = (container) =>
     container.querySelector('.stealth-prediction-display').textContent.replace(/\s+/g, ' ').trim();
 
-const calibration = (level, rate, belowBreakEven) =>
-    new Map([[level, { n: 300, rate, low: rate - 0.05, high: rate + 0.05, breakEven: 0.506, belowBreakEven }]]);
+// Keyed on whatever C-Level this board actually produces. Hard-coding a level
+// tied the test to a literal the engine used to return for Rule-of-Three hands
+// (confidence: 3) and no longer does -- it is computed uniformly now.
+const levelOf = (scorecard, highlights, row) =>
+    predictNextHand(scorecard, highlights, row, new Map()).confidence;
+
+const calibration = (rate, belowBreakEven, scorecard = grid, highlights = highlights_, row = hands.length) =>
+    new Map([[levelOf(scorecard, highlights, row),
+              { n: 300, rate, low: rate - 0.05, high: rate + 0.05, breakEven: 0.506, belowBreakEven }]]);
 
 describe('StealthModeView', () => {
     it('reads "B : 42%" — the side, then the measured rate', () => {
-        const { container } = show(calibration(3, 0.42, true));
+        const { container } = show(calibration(0.42, true));
         expect(line(container)).toBe('B : 42%');
     });
 
     it('marks the rate when the level is measurably losing', () => {
-        const { container } = show(calibration(3, 0.42, true));
+        const { container } = show(calibration(0.42, true));
         expect(container.querySelector('.confidence-losing')).not.toBeNull();
     });
 
     it('leaves the rate unmarked when the level is not losing', () => {
-        const { container } = show(calibration(3, 0.54, false));
+        const { container } = show(calibration(0.54, false));
         expect(line(container)).toBe('B : 54%');
         expect(container.querySelector('.confidence-losing')).toBeNull();
     });
@@ -63,7 +72,7 @@ describe('StealthModeView', () => {
     });
 
     it('never shows the old Low / Med / HIGH labels', () => {
-        const { container } = show(calibration(3, 0.42, true));
+        const { container } = show(calibration(0.42, true));
         expect(container.textContent).not.toMatch(/\b(HIGH|Med|Low)\b/);
     });
 
@@ -73,14 +82,14 @@ describe('StealthModeView', () => {
             <StealthModeView
                 onExit={noop} scorecard={blank} lastWinRow={-1} lastPlayedRow={0}
                 handleCellClick={noop} recordTie={noop}
-                highlightedCells={new Map()} calibration={calibration(0, 0.42, true)}
+                highlightedCells={new Map()} calibration={calibration(0.42, true)}
             />
         );
         expect(line(container)).toBe('N/A');
     });
 
     it('rounds the rate to a whole number', () => {
-        const { container } = show(calibration(3, 0.4267, false));
+        const { container } = show(calibration(0.4267, false));
         expect(line(container)).toBe('B : 43%');
     });
 });

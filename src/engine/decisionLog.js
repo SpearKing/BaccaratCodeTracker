@@ -17,8 +17,15 @@
 
 import { ENGINE_VERSION } from './predict';
 
-/** Shape version for the stored records, separate from the engine version. */
-export const LOG_SCHEMA_VERSION = 1;
+/**
+ * Shape version for the stored records, separate from the engine version.
+ *
+ * v2 adds `candidates`: every rule that fired on the hand and what it called,
+ * not just the one that won. Arbitration needs that -- if only winners were
+ * recorded, a rule that keeps losing could never build the record it needs to
+ * start winning, and whichever rule led first would lead for ever.
+ */
+export const LOG_SCHEMA_VERSION = 2;
 
 /** How many preceding hands each entry carries, for re-deriving features later. */
 export const HISTORY_LENGTH = 12;
@@ -51,6 +58,11 @@ export const makeEntry = ({ card, handIndex, prediction, actual, hands, at }) =>
     confidence: prediction?.confidence ?? 0,
     source: prediction?.source ?? null,
     pattern: prediction?.pattern ?? null,
+    // Only id and call are kept: the record each rule held at the time is
+    // derivable from the entries before this one, so storing it would both
+    // bloat the log and let a stale copy disagree with the log itself.
+    candidates: (prediction?.candidates ?? []).map(({ id, call }) => ({ id, call })),
+    contested: prediction?.contested ?? false,
     actual,
     history: historyBefore(hands, handIndex),
     at: at || new Date().toISOString(),
