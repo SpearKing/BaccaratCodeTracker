@@ -12,6 +12,7 @@
 // real 2-point edge from noise needs on the order of 3,900 predictions.
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { fromServerRow } from '../engine/decisionLog';
 
 export const DECISION_LOG_KEY = 'baccarat_decision_log';
 
@@ -42,8 +43,36 @@ export const useDecisionLog = (apiUrl) => {
     const [log, setLog] = useState(load);
     const [syncError, setSyncError] = useState(null);
     const syncing = useRef(false);
+    const fetchedRemote = useRef(false);
 
     useEffect(() => { persist(log); }, [log]);
+
+    // A device with no log of its own pulls one down. Same rule as the card:
+    // local is authoritative when it exists, because it holds every hand played
+    // here and the server only holds what has been synced. This runs once, on a
+    // genuinely empty log, so a cold start is worth the wait.
+    useEffect(() => {
+        if (!apiUrl || fetchedRemote.current) return;
+        if (log.length > 0) { fetchedRemote.current = true; return; }
+        fetchedRemote.current = true;
+
+        let cancelled = false;
+        (async () => {
+            try {
+                const response = await fetch(`${apiUrl}/predictions?limit=50000`);
+                if (!response.ok) throw new Error(`Server returned ${response.status}`);
+                const rows = await response.json();
+                if (cancelled || !Array.isArray(rows) || rows.length === 0) return;
+                // Marked synced: they came from the server, so pushing them
+                // straight back would be a round trip for nothing.
+                setLog(rows.map((r) => ({ ...fromServerRow(r), synced: true })));
+            } catch (error) {
+                // Offline, or the backend asleep. Starting empty is correct.
+                console.error('Could not fetch the decision log from the server.', error);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [apiUrl, log.length]);
 
     const append = useCallback((entry) => {
         if (!entry) return;

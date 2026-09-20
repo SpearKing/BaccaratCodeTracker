@@ -7,6 +7,7 @@ import {
     staleEntries,
     byEngine,
     LOG_SCHEMA_VERSION,
+    fromServerRow,
 } from './decisionLog';
 import { ENGINE_VERSION } from './predict';
 
@@ -105,5 +106,49 @@ describe('engine versioning', () => {
         const split = byEngine(log);
         expect(split.get('old@0')).toHaveLength(1);
         expect(split.get(ENGINE_VERSION)).toHaveLength(2);
+    });
+});
+
+describe('fromServerRow', () => {
+    const row = {
+        schema_version: 2,
+        engine_version: 'arbitrated@2',
+        card: 'Boomtown - 09/19/25',
+        hand_index: 12,
+        predicted: 'B',
+        confidence: 4,
+        source: 'wiener-3',
+        pattern: null,
+        actual: 'P',
+        history: 'PBBPB',
+        decided_at: '2026-09-19T18:04:05.000Z',
+        candidates: [{ id: 'wiener-3', call: 'B' }, { id: 'pattern', call: 'P' }],
+        contested: true,
+        mode: null,
+        replayed: false,
+    };
+
+    it('maps a row back into the shape the engine reads', () => {
+        expect(fromServerRow(row)).toEqual({
+            v: 2, engine: 'arbitrated@2', card: 'Boomtown - 09/19/25', hand: 12,
+            predicted: 'B', confidence: 4, source: 'wiener-3', pattern: null,
+            candidates: [{ id: 'wiener-3', call: 'B' }, { id: 'pattern', call: 'P' }],
+            contested: true, actual: 'P', history: 'PBBPB',
+            at: '2026-09-19T18:04:05.000Z',
+        });
+    });
+
+    it('brings back the candidates, which arbitration is rebuilt from', () => {
+        expect(fromServerRow(row).candidates).toHaveLength(2);
+        expect(fromServerRow({ ...row, candidates: null }).candidates).toEqual([]);
+    });
+
+    it('carries the test flag through, so downloaded test hands still do not count', () => {
+        expect(fromServerRow({ ...row, mode: 'test' }).mode).toBe('test');
+        expect(fromServerRow(row).mode).toBeUndefined();
+    });
+
+    it('marks replayed entries as such', () => {
+        expect(fromServerRow({ ...row, replayed: true }).replayed).toBe(true);
     });
 });

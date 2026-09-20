@@ -104,3 +104,27 @@ export const byEngine = (entries) => {
     });
     return out;
 };
+
+/**
+ * A server row as a log entry.
+ *
+ * The table uses snake_case column names; the log uses the shape the engine
+ * reads. Kept beside makeEntry so the two cannot drift.
+ */
+export const fromServerRow = (row) => ({
+    v: row.schema_version ?? 1,
+    engine: row.engine_version,
+    card: row.card ?? null,
+    hand: row.hand_index,
+    predicted: row.predicted ?? null,
+    confidence: row.confidence ?? 0,
+    source: row.source ?? null,
+    pattern: row.pattern ?? null,
+    candidates: Array.isArray(row.candidates) ? row.candidates : [],
+    contested: Boolean(row.contested),
+    actual: row.actual,
+    history: row.history ?? '',
+    at: row.decided_at,
+    ...(row.mode ? { mode: row.mode } : {}),
+    ...(row.replayed ? { replayed: true } : {}),
+});

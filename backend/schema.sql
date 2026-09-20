@@ -34,8 +34,22 @@ CREATE TABLE IF NOT EXISTS predictions (
     actual         TEXT        NOT NULL,  -- 'P' | 'B' | 'T'
     history        TEXT,                  -- preceding hands, oldest first
     decided_at     TIMESTAMPTZ NOT NULL,  -- when the hand was played
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Every rule that fired on the hand and what it called, not just the one
+    -- that won. Arbitration is rebuilt from this, so a log downloaded without
+    -- it would restore the history and lose the engine's memory.
+    candidates     JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    contested      BOOLEAN     NOT NULL DEFAULT false,
+    mode           TEXT,                  -- 'test' for hands that must not count
+    replayed       BOOLEAN     NOT NULL DEFAULT false   -- reconstructed, not recorded live
 );
+
+-- Added after the table first shipped; harmless to re-run.
+ALTER TABLE predictions ADD COLUMN IF NOT EXISTS candidates JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE predictions ADD COLUMN IF NOT EXISTS contested  BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE predictions ADD COLUMN IF NOT EXISTS mode       TEXT;
+ALTER TABLE predictions ADD COLUMN IF NOT EXISTS replayed   BOOLEAN NOT NULL DEFAULT false;
 
 -- A card may be replayed, so the same (card, hand) can appear more than once.
 -- Reads take the most recent, which this index supports.

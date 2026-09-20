@@ -87,8 +87,9 @@ app.post('/api/predictions', async (req, res) => {
   const query = `
     INSERT INTO predictions
       (schema_version, engine_version, card, hand_index, predicted,
-       confidence, source, pattern, actual, history, decided_at)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+       confidence, source, pattern, actual, history, decided_at,
+       candidates, contested, mode, replayed)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     ON CONFLICT DO NOTHING;
   `;
 
@@ -101,6 +102,8 @@ app.post('/api/predictions', async (req, res) => {
         e.v ?? 1, e.engine, e.card ?? null, e.hand, e.predicted ?? null,
         e.confidence ?? null, e.source ?? null, e.pattern ?? null,
         e.actual, e.history ?? null, e.at,
+        JSON.stringify(e.candidates ?? []), e.contested ?? false,
+        e.mode ?? null, e.replayed ?? false,
       ]);
       inserted += result.rowCount;
     }
