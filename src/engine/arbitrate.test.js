@@ -1,6 +1,10 @@
 // src/engine/arbitrate.test.js
 
 import { arbitrate, recordsFrom, weightFor, NO_RECORD_WEIGHT } from './arbitrate';
+import { ENGINE_VERSION } from './version';
+
+// Records are scoped to the running engine, so fixtures have to name it.
+const here = (entry) => ({ engine: ENGINE_VERSION, ...entry });
 
 const cand = (id, call, specificity = 1) => ({ rule: { id, specificity }, call });
 
@@ -9,8 +13,8 @@ const recordsOf = (obj) => new Map(Object.entries(obj));
 describe('recordsFrom', () => {
     it('credits every rule that fired, not just the one that won', () => {
         const log = [
-            { actual: 'P', winner: 'a', candidates: [{ id: 'a', call: 'P' }, { id: 'b', call: 'B' }] },
-            { actual: 'B', winner: 'a', candidates: [{ id: 'a', call: 'P' }, { id: 'b', call: 'B' }] },
+            here({ actual: 'P', winner: 'a', candidates: [{ id: 'a', call: 'P' }, { id: 'b', call: 'B' }] }),
+            here({ actual: 'B', winner: 'a', candidates: [{ id: 'a', call: 'P' }, { id: 'b', call: 'B' }] }),
         ];
         const r = recordsFrom(log);
         // 'b' lost both arbitrations but was right once -- it must be on record,
@@ -20,12 +24,12 @@ describe('recordsFrom', () => {
     });
 
     it('treats a tie as a push rather than a loss', () => {
-        const r = recordsFrom([{ actual: 'T', candidates: [{ id: 'a', call: 'P' }] }]);
+        const r = recordsFrom([here({ actual: 'T', candidates: [{ id: 'a', call: 'P' }] })]);
         expect(r.has('a')).toBe(false);
     });
 
     it('ignores rules that abstained', () => {
-        const r = recordsFrom([{ actual: 'P', candidates: [{ id: 'a', call: null }] }]);
+        const r = recordsFrom([here({ actual: 'P', candidates: [{ id: 'a', call: null }] })]);
         expect(r.has('a')).toBe(false);
     });
 
@@ -110,5 +114,28 @@ describe('arbitrate', () => {
         const r = arbitrate([cand('a', 'P'), cand('b', 'B')], recordsOf({ a: { n: 50, correct: 30 } }));
         expect(r.candidates.map((c) => c.id).sort()).toEqual(['a', 'b']);
         expect(r.candidates.find((c) => c.id === 'a').record).toEqual({ n: 50, correct: 30 });
+    });
+});
+
+describe('records are scoped to one engine version', () => {
+    const entry = (engine, call, actual) => ({ engine, actual, candidates: [{ id: 'a', call }] });
+
+    it('ignores decisions made by a different engine', () => {
+        const r = recordsFrom([
+            entry('arbitrated@2', 'P', 'P'),
+            entry('something-else@9', 'P', 'P'),
+            entry('something-else@9', 'P', 'P'),
+        ], 'arbitrated@2');
+        expect(r.get('a')).toEqual({ n: 1, correct: 1 });
+    });
+
+    it('defaults to the engine currently running', () => {
+        const r = recordsFrom([entry('an-old-engine@0', 'P', 'P')]);
+        expect(r.has('a')).toBe(false);
+    });
+
+    it('skips pre-v2 entries, which carry no candidates', () => {
+        const r = recordsFrom([{ engine: 'arbitrated@2', actual: 'P', predicted: 'P' }]);
+        expect(r.size).toBe(0);
     });
 });

@@ -18,15 +18,7 @@ import { handsFromGrid, isDecided } from './grid';
 import { firingRules } from './rules';
 import { arbitrate } from './arbitrate';
 
-/**
- * Identifies the rules AND how they are settled between.
- *
- * Bumped from 'rule-of-three+pattern@1': conflicts now go to the better track
- * record rather than to whichever rule was written first, so outputs differ.
- * Entries logged under the old version are scored separately and never blended
- * with these.
- */
-export const ENGINE_VERSION = 'arbitrated@2';
+export { ENGINE_VERSION } from './version';
 
 /** Which side won on this row, or null if it has not been played. */
 export const winnerAtRow = (scorecard, rowIdx) => {

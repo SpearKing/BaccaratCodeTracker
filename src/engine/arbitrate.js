@@ -22,6 +22,8 @@
 // out of reading an append-only log, and it is what keeps the arbitration
 // honest: a rule's future performance can never influence its present weight.
 
+import { ENGINE_VERSION } from './version';
+
 /**
  * Strength of the even-split prior, in hands. A rule needs about this many
  * firings before its own rate outweighs the prior.
@@ -42,10 +44,16 @@ export const NO_RECORD_WEIGHT = 0.5;
  * losing would never accumulate the evidence it needs to start winning, and
  * whichever rule happened to lead early would lead for ever.
  */
-export const recordsFrom = (log) => {
+export const recordsFrom = (log, engine = ENGINE_VERSION) => {
     const records = new Map();
 
     (log || []).forEach((entry) => {
+        // Only decisions made by the engine now running. A rule's record under
+        // one version says nothing about it under another, and blending them
+        // produces a number that can never be unpicked. Entries from before
+        // candidates were logged carry none, so they were already skipped --
+        // but by accident rather than on purpose, which is not a guarantee.
+        if (engine && entry.engine !== engine) return;
         if (entry.actual !== 'P' && entry.actual !== 'B') return;   // ties push
         (entry.candidates || []).forEach(({ id, call }) => {
             if (call !== 'P' && call !== 'B') return;
@@ -65,8 +73,9 @@ export const recordsFrom = (log) => {
  * The incremental twin of recordsFrom, for replaying a long history without
  * rebuilding every rule's record on every hand.
  */
-export const applyToRecords = (records, entry) => {
+export const applyToRecords = (records, entry, engine = ENGINE_VERSION) => {
     if (!entry || (entry.actual !== 'P' && entry.actual !== 'B')) return records;
+    if (engine && entry.engine !== engine) return records;
     (entry.candidates || []).forEach(({ id, call }) => {
         if (call !== 'P' && call !== 'B') return;
         if (!records.has(id)) records.set(id, { n: 0, correct: 0 });
