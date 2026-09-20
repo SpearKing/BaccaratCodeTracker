@@ -1,8 +1,10 @@
 // src/hooks/useScorecardLogic.js
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { NUM_INITIAL_COLUMNS } from '../utils/constants';
 import { createInitialScorecard, calculateSingleRow, deriveGrid, handsFromGrid, TIE } from '../engine/grid';
 import { makeEntry } from '../engine/decisionLog';
+import { stateFromHands } from '../engine/cardFormat';
+import { saveLocalCard, loadLocalCard } from './useLocalCard';
 
 /**
  * Grid state and the actions that change it.
@@ -18,12 +20,26 @@ import { makeEntry } from '../engine/decisionLog';
  * instance. It is read at the moment a hand is recorded, so the log stores what
  * was genuinely on screen beforehand.
  */
-export const useScorecardLogic = (onDecision, getPrediction) => {
+export const useScorecardLogic = (onDecision, getPrediction, cardName) => {
     const [scorecard, setScorecard] = useState(createInitialScorecard);
     const [lastWinType, setLastWinType] = useState(null);
     const [lastWinRow, setLastWinRow] = useState(-1);
+    const hasRestored = useRef(false);
+    const [restoredFromLocal, setRestoredFromLocal] = useState(false);
 
-    useEffect(() => { try { const savedGames = JSON.parse(localStorage.getItem('baccarat_all_saved_scorecards') || '{}'); const lastActiveName = localStorage.getItem('baccarat_last_active_scorecard_name') || 'Last Session'; if (savedGames[lastActiveName]) { setScorecard(savedGames[lastActiveName].scorecard || createInitialScorecard()); setLastWinType(savedGames[lastActiveName].lastWinType || null); setLastWinRow(savedGames[lastActiveName].lastWinRow || -1); } } catch (error) { console.error("Failed to load from local storage", error); } }, []);
+    // Restore whatever this device was in the middle of. The old version read
+    // a localStorage key that nothing had written since scorecards moved to the
+    // server, so it never fired and every reload came back to a blank card.
+    useEffect(() => {
+        const local = loadLocalCard();
+        hasRestored.current = true;
+        if (!local) return;   // never played here; the server fallback takes over
+        setRestoredFromLocal(true);
+        const restored = stateFromHands(local.hands);
+        setScorecard(restored.scorecard);
+        setLastWinType(restored.lastWinType);
+        setLastWinRow(restored.lastWinRow);
+    }, []);
 
     const maxRenderableColumns = useMemo(() => { let maxContentColIndex = 3 + NUM_INITIAL_COLUMNS - 1; if (scorecard) { scorecard.forEach(row => { for (let i = 3; i < row.length; i++) { if (row[i].displayValue !== '' || row[i].value !== null) { maxContentColIndex = Math.max(maxContentColIndex, i); } } }); } return maxContentColIndex + 1; }, [scorecard]);
     
@@ -31,6 +47,14 @@ export const useScorecardLogic = (onDecision, getPrediction) => {
     // the last DECIDED row, which is what predictions anchor to; a tie must not
     // move it, but the next hand still has to land below the tie.
     const lastPlayedRow = useMemo(() => handsFromGrid(scorecard).length, [scorecard]);
+
+    // Written on every change rather than on a timer. The 1.5s debounce on the
+    // old server autosave existed because that was a network call; this is a
+    // few hundred bytes to localStorage.
+    useEffect(() => {
+        if (!hasRestored.current) return;   // don't overwrite a restore with the blank initial state
+        saveLocalCard(handsFromGrid(scorecard), cardName);
+    }, [scorecard, cardName]);
 
 
     /**
@@ -78,6 +102,14 @@ export const useScorecardLogic = (onDecision, getPrediction) => {
     
     const resetScorecard = useCallback(() => { setScorecard(createInitialScorecard()); setLastWinType(null); setLastWinRow(-1); }, []);
 
+    /** Replaces the board with a card's hands -- used by Load and the server fallback. */
+    const loadHands = useCallback((hands) => {
+        const restored = stateFromHands(hands || []);
+        setScorecard(restored.scorecard);
+        setLastWinType(restored.lastWinType);
+        setLastWinRow(restored.lastWinRow);
+    }, []);
+
     /**
      * Removes a hand and rebuilds the grid from the hands that remain.
      *
@@ -124,5 +156,5 @@ export const useScorecardLogic = (onDecision, getPrediction) => {
         logDecision(next.length, TIE, next);
     }, [scorecard, logDecision]);
 
-    return { scorecard, setScorecard, lastWinType, setLastWinType, lastWinRow, setLastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow, recordTie, maxRenderableColumns };
+    return { scorecard, lastWinType, lastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow, recordTie, loadHands, restoredFromLocal, maxRenderableColumns };
 };

@@ -106,7 +106,7 @@ const ControlPanel = ({
                 <div className="load-game-section">
                     <select value={loadGameSelect} onChange={(e) => setLoadGameSelect(e.target.value)}>
                         <option value="">-- Select Game to Load --</option>
-                        {Object.keys(allSavedScorecards).filter(name => name !== DEFAULT_GAME_NAME).map(name => ( <option key={name} value={name}>{name}</option> ))}
+                        {Object.keys(allSavedScorecards).map(name => ( <option key={name} value={name}>{name === DEFAULT_GAME_NAME ? `${name} (last device)` : name}</option> ))}
                     </select>
                     <button onClick={handleLoadSelectedGame} className="load-button" disabled={!loadGameSelect}> Load </button>
                 </div>

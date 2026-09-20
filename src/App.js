@@ -13,6 +13,7 @@ import StealthModeView from './components/StealthModeView';
 import StatsModal from './components/StatsModal';
 import { confidenceCalibration } from './engine/stats';
 import { recordsFrom, headToHeadFrom } from './engine/arbitrate';
+import { handsFromGrid } from './engine/grid';
 import { API_URL } from './utils/constants';
 
 function App() {
@@ -40,11 +41,16 @@ function App() {
     );
     const getPrediction = useCallback(() => predictionRef.current, []);
 
+    const cardNameForCard = cardNameRef.current;
     const {
-        scorecard, setScorecard, lastWinType, setLastWinType, lastWinRow,
-        setLastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow,
-        recordTie, maxRenderableColumns,
-    } = useScorecardLogic(handleDecision, getPrediction);
+        scorecard, lastWinType, lastWinRow, lastPlayedRow,
+        handleCellClick, resetScorecard, deleteRow, recordTie,
+        loadHands, restoredFromLocal, maxRenderableColumns,
+    } = useScorecardLogic(handleDecision, getPrediction, cardNameForCard);
+
+    // The hands are what gets stored, locally and on the server. The board is
+    // rebuilt from them, so nothing else needs keeping.
+    const hands = useMemo(() => handsFromGrid(scorecard), [scorecard]);
 
     const { isDarkMode, setIsDarkMode } = useTheme();
     const { showAnalytics, setShowAnalytics, highlightedCells } = useAnalytics(scorecard, maxRenderableColumns);
@@ -60,10 +66,13 @@ function App() {
         return { pWins, bWins };
     }, [scorecard]);
 
-    const gameManagement = useGameManagement(
-        scorecard, lastWinType, lastWinRow, setScorecard,
-        setLastWinType, setLastWinRow, resetScorecard, tallies
-    );
+    const gameManagement = useGameManagement({
+        hands,
+        loadHands,
+        resetScorecard,
+        restoredFromLocal,
+        stats: tallies,
+    });
 
     useEffect(() => {
         cardNameRef.current = gameManagement.currentScorecardName;
