@@ -165,3 +165,4 @@ input:checked + .slider:before { transform: translateX(22px); }
 .stealth-test-marker { position: absolute; top: 14px; left: 0; right: 0; text-align: center; font-size: 0.75em; font-weight: bold; letter-spacing: 0.12em; color: var(--button-reset-bg); opacity: 0.85; }
 
 .import-log-button { display: block; margin-top: 8px; cursor: pointer; background-color: var(--button-load-bg); }
+.confidence-unknown { opacity: 0.45; }

@@ -4,7 +4,8 @@ import StealthIcon from './StealthIcon';
 import { predictNextHand } from '../engine/predict';
 
 // Reads as "B : 42%" -- back Banker, and hands like this one have come in 42%
-// of the time in this player's own log.
+// of the time in this player's own log. Below 30 such hands there is no rate
+// worth quoting, and it reads "B : —".
 //
 // The number used to be a raw count of highlighted cells shown as "Low" /
 // "Med" / "HIGH". Those labels were never measured, and when they finally were
@@ -80,10 +81,19 @@ const StealthModeView = ({
 
                 <div className="stealth-prediction-display">
                     <span className="prediction-value">{prediction || 'N/A'}</span>
-                    {prediction && measured && (
-                        <span className={`confidence-value${measured.belowBreakEven ? ' confidence-losing' : ''}`}>
-                            &nbsp;: {Math.round(measured.rate * 100)}%
-                        </span>
+                    {prediction && (
+                        measured ? (
+                            <span className={`confidence-value${measured.belowBreakEven ? ' confidence-losing' : ''}`}>
+                                &nbsp;: {Math.round(measured.rate * 100)}%
+                            </span>
+                        ) : (
+                            // A dash rather than nothing. Showing the side alone
+                            // left no way to tell "this level has no record yet"
+                            // apart from "this screen does not report one", and
+                            // the second would be worth chasing while the first
+                            // just needs hands.
+                            <span className="confidence-value confidence-unknown">&nbsp;: —</span>
+                        )
                     )}
                 </div>
             </div>

@@ -66,9 +66,12 @@ describe('StealthModeView', () => {
         expect(container.querySelector('.confidence-losing')).toBeNull();
     });
 
-    it('shows the side alone until a level has enough hands behind it', () => {
+    it('shows a dash until a level has enough hands behind it', () => {
+        // Not a bare "B": that reads as though the screen has no opinion on
+        // confidence at all, rather than as "no record for this level yet".
         const { container } = show(new Map());
-        expect(line(container)).toBe('B');
+        expect(line(container)).toBe('B : —');
+        expect(container.querySelector('.confidence-unknown')).not.toBeNull();
     });
 
     it('never shows the old Low / Med / HIGH labels', () => {
@@ -125,7 +128,7 @@ describe('a card whose last entry is a tie', () => {
     it('still predicts from the last decided hand', () => {
         // The tie changes nothing, so the call is the same as without it.
         const { container } = showTied();
-        expect(line(container)).toBe('B');
+        expect(line(container)).toBe('B : —');
     });
 });
 
