@@ -48,24 +48,29 @@ describe('weightFor', () => {
         expect(weightFor({ n: 500, correct: 300 })).toBeGreaterThan(NO_RECORD_WEIGHT);
     });
 
-    it('discounts a thin record toward an even split', () => {
-        // 6 of 10 is 60% raw; shrunk it barely clears half.
-        expect(weightFor({ n: 10, correct: 6 })).toBeLessThan(0.54);
-        // 600 of 1000 keeps most of its 60%.
-        expect(weightFor({ n: 1000, correct: 600 })).toBeGreaterThan(0.58);
+    it('ignores a rate built on too few firings', () => {
+        // 6 of 10 is 60% on paper and means nothing.
+        expect(weightFor({ n: 10, correct: 6 })).toBe(NO_RECORD_WEIGHT);
+        // Once there are enough firings the rate is used as measured.
+        expect(weightFor({ n: 1000, correct: 600 })).toBeCloseTo(0.6, 10);
     });
 
     it('does not rank a worse rule above a better one for having more hands', () => {
         // The failure that replaced the lower bound: `pattern` measured 49.3%
         // over 2,289 and rule-of-three-player 51.0% over 473. The better rule
         // must win despite the smaller sample.
-        const worseButBigger = weightFor({ n: 2289, correct: 1129 });
-        const betterButSmaller = weightFor({ n: 473, correct: 241 });
+        const worseButBigger = weightFor({ n: 2289, correct: 1129 });   // 49.3%
+        const betterButSmaller = weightFor({ n: 473, correct: 241 });   // 51.0%
         expect(betterButSmaller).toBeGreaterThan(worseButBigger);
     });
 
-    it('rises as a good rule accumulates evidence', () => {
-        expect(weightFor({ n: 400, correct: 220 })).toBeGreaterThan(weightFor({ n: 40, correct: 22 }));
+    it('is the rate itself, so equal rates weigh equally', () => {
+        expect(weightFor({ n: 400, correct: 220 })).toBeCloseTo(weightFor({ n: 40, correct: 22 }), 10);
+    });
+
+    it('starts counting a rule the moment it clears the floor', () => {
+        expect(weightFor({ n: 19, correct: 19 })).toBe(NO_RECORD_WEIGHT);
+        expect(weightFor({ n: 20, correct: 11 })).toBeCloseTo(0.55, 10);
     });
 });
 

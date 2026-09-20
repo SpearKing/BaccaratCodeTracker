@@ -27,14 +27,17 @@ const entry = (i, predicted, actual, extra = {}) => ({
 const noop = () => {};
 const tallies = { pWins: 40, bWins: 60 };
 
+// Entries now carry the rules that fired, which is what arbitration weighs.
+const withCandidates = (e, candidates) => ({ ...e, candidates });
+
 describe('StatsModal', () => {
     it('says so plainly when there is nothing recorded yet', () => {
-        render(<StatsModal tallies={tallies} log={[]} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={[]} onClose={noop} onExportLog={noop} />);
         expect(screen.getByText(/No predictions recorded yet/i)).toBeInTheDocument();
     });
 
     it('still shows the card tallies with an empty log', () => {
-        render(<StatsModal tallies={tallies} log={[]} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={[]} onClose={noop} onExportLog={noop} />);
         expect(screen.getByText('60')).toBeInTheDocument();
         expect(screen.getByText('40')).toBeInTheDocument();
     });
@@ -44,7 +47,7 @@ describe('StatsModal', () => {
         const log = Array.from({ length: 200 }, (_, i) =>
             entry(i + 1, 'P', i < 104 ? 'P' : 'B')
         );
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
 
         expect(screen.getByText(/indistinguishable from chance/i)).toBeInTheDocument();
         expect(screen.queryByText(/clears break-even/i)).not.toBeInTheDocument();
@@ -54,13 +57,13 @@ describe('StatsModal', () => {
         const log = Array.from({ length: 200 }, (_, i) =>
             entry(i + 1, 'P', i < 104 ? 'P' : 'B')
         );
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
         expect(screen.getByText(/more than recorded so far/i)).toBeInTheDocument();
     });
 
     it('shows the baselines next to the engine', () => {
         const log = Array.from({ length: 50 }, (_, i) => entry(i + 1, 'B', 'B'));
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
 
         expect(screen.getByText('Always Banker')).toBeInTheDocument();
         expect(screen.getByText('Always Player')).toBeInTheDocument();
@@ -74,7 +77,7 @@ describe('StatsModal', () => {
             entry(9, null, 'P'),
             entry(10, null, 'B'),
         ];
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
         expect(screen.getByText(/of 10 hands/i)).toBeInTheDocument();
     });
 
@@ -85,7 +88,7 @@ describe('StatsModal', () => {
                 entry(i + 100, 'B', 'B', { engine: 'ancient@0' })
             ),
         ];
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
 
         expect(screen.getByText(/1 older engine version excluded/i)).toBeInTheDocument();
         // 5 current-engine wins, not 10.
@@ -97,7 +100,7 @@ describe('StatsModal', () => {
         render(
             <StatsModal
                 tallies={tallies} log={log} pendingSync={3} syncError="Failed to fetch"
-                onClose={noop} onClearLog={noop}
+                onClose={noop} onExportLog={noop}
             />
         );
         expect(screen.getByText(/3 waiting to sync/i)).toBeInTheDocument();
@@ -105,7 +108,7 @@ describe('StatsModal', () => {
     });
 
     it('names the engine that produced the numbers', () => {
-        render(<StatsModal tallies={tallies} log={[]} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={[]} onClose={noop} onExportLog={noop} />);
         expect(screen.getByText(new RegExp(ENGINE_VERSION.replace(/[+@]/g, '.'), 'i'))).toBeInTheDocument();
     });
 });
@@ -115,7 +118,7 @@ describe('panel restraint', () => {
         // 2 right out of 7 -- well below break-even. Telling the user how many
         // more hands would confirm this is not useful.
         const log = Array.from({ length: 7 }, (_, i) => entry(i + 1, 'P', i < 2 ? 'P' : 'B'));
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
         expect(screen.queryByText(/more than recorded so far/i)).not.toBeInTheDocument();
     });
 
@@ -126,7 +129,7 @@ describe('panel restraint', () => {
             entry(5, null, 'P', { confidence: 0 }),
             entry(6, null, 'B', { confidence: 0 }),
         ];
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
         expect(screen.queryByText('no data')).not.toBeInTheDocument();
     });
 });
@@ -138,7 +141,7 @@ describe('C-Level presentation', () => {
             ...Array.from({ length: 100 }, (_, i) => entry(i + 1, 'P', i < 54 ? 'P' : 'B', { confidence: 3 })),
             ...Array.from({ length: 100 }, (_, i) => entry(i + 200, 'P', i < 47 ? 'P' : 'B', { confidence: 5 })),
         ];
-        render(<StatsModal tallies={tallies} log={log} onClose={noop} onClearLog={noop} />);
+        render(<StatsModal tallies={tallies} log={log} onClose={noop} onExportLog={noop} />);
         expect(screen.getByText(/higher levels should verify more often/i)).toBeInTheDocument();
         // C=3 is shown ahead of C=5 with its higher rate, so the inversion is
         // visible rather than hidden behind a "HIGH" label.
@@ -146,5 +149,41 @@ describe('C-Level presentation', () => {
         expect(body).toMatch(/54\.0%/);
         expect(body).toMatch(/47\.0%/);
         expect(body.indexOf('54.0%')).toBeLessThan(body.indexOf('47.0%'));
+    });
+});
+
+describe('per-rule records', () => {
+    const fired = (i, id, call, actual, cardName) =>
+        withCandidates(
+            { ...entry(i, call, actual), card: cardName },
+            [{ id, call }]
+        );
+
+    it('separates this card from the overall record', () => {
+        const log = [
+            ...Array.from({ length: 40 }, (_, i) => fired(i + 1, 'wiener-3', 'B', i < 30 ? 'B' : 'P', 'Tonight')),
+            ...Array.from({ length: 40 }, (_, i) => fired(i + 100, 'wiener-3', 'B', i < 10 ? 'B' : 'P', 'Last week')),
+        ];
+        render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
+
+        const body = document.body.textContent;
+        expect(body).toMatch(/wiener 3/);
+        expect(body).toMatch(/75\.0%/);   // this card: 30 of 40
+        expect(body).toMatch(/50\.0%/);   // overall: 40 of 80
+    });
+
+    it('greys a rate with too few firings behind it', () => {
+        const log = Array.from({ length: 5 }, (_, i) => fired(i + 1, 'snake-box-3', 'B', 'B', 'Tonight'));
+        const { container } = render(
+            <StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />
+        );
+        expect(container.textContent).toMatch(/not yet used/);
+    });
+
+    it('offers a download instead of a way to wipe the log', () => {
+        const log = Array.from({ length: 5 }, (_, i) => fired(i + 1, 'wiener-3', 'B', 'B', 'Tonight'));
+        render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
+        expect(screen.getByText(/download decision log/i)).toBeInTheDocument();
+        expect(screen.queryByText(/clear decision log/i)).not.toBeInTheDocument();
     });
 });

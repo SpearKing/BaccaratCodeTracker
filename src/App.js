@@ -20,8 +20,7 @@ function App() {
     const [isStealthMode, setIsStealthMode] = useState(false);
     const [showStats, setShowStats] = useState(false);
 
-    const { log, append: appendDecision, clear: clearLog, pendingSync, syncError } =
-        useDecisionLog(API_URL);
+    const { log, append: appendDecision, pendingSync, syncError } = useDecisionLog(API_URL);
 
     // App owns the ONLY analytics instance and the ONLY prediction, and feeds
     // both to the logger through refs. The refs are what break the cycle --
@@ -87,6 +86,18 @@ function App() {
 
     const handleEnterStealthMode = () => { setIsDarkMode(true); setIsStealthMode(true); };
 
+    // Saving a copy is the only destructive-adjacent thing worth offering: the
+    // log is the engine's memory and nothing pulls it back from the server.
+    const handleExportLog = useCallback(() => {
+        const blob = new Blob([JSON.stringify(log, null, 1)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `baccarat-decision-log-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [log]);
+
     const handleFullReset = useCallback(() => {
         if (window.confirm("Are you sure you want to start a new game?")) {
             // Note: the decision log deliberately survives this. It has to
@@ -125,9 +136,10 @@ function App() {
                 <StatsModal
                     tallies={tallies}
                     log={log}
+                    card={gameManagement.currentScorecardName}
                     pendingSync={pendingSync}
                     syncError={syncError}
-                    onClearLog={clearLog}
+                    onExportLog={handleExportLog}
                     onClose={() => setShowStats(false)}
                 />
             )}

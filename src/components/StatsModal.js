@@ -1,8 +1,10 @@
 // src/components/StatsModal.js
 import React, { useMemo } from 'react';
-import { summarise, beatsBreakEven } from '../engine/stats';
+import { summarise, beatsBreakEven, wilsonInterval } from '../engine/stats';
 import { dedupe, byEngine } from '../engine/decisionLog';
+import { recordsFrom, MIN_FIRINGS } from '../engine/arbitrate';
 import { ENGINE_VERSION } from '../engine/predict';
+import { RULES } from '../engine/rules';
 
 const pct = (x) => (x === null || x === undefined ? '--' : `${(x * 100).toFixed(1)}%`);
 const signed = (x) => (x === null || x === undefined ? '--' : `${x >= 0 ? '+' : ''}${x.toFixed(3)}`);
@@ -29,7 +31,7 @@ const Verdict = ({ tally: t }) => {
     return <span className="verdict-unknown">indistinguishable from chance</span>;
 };
 
-const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose }) => {
+const StatsModal = ({ tallies, log, card, pendingSync, syncError, onExportLog, onClose }) => {
     const entries = useMemo(() => dedupe(log || []), [log]);
 
     // Never average two engines together. Only the current one is scored.
@@ -41,6 +43,15 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
     );
 
     const s = useMemo(() => summarise(current), [current]);
+
+    // Each rule's record from every hand it FIRED on, win or lose -- which is
+    // what arbitration actually weighs. That differs from "by rule" below,
+    // which counts only the hands a rule won.
+    const overallRecords = useMemo(() => recordsFrom(current), [current]);
+    const sessionRecords = useMemo(
+        () => recordsFrom(current.filter((e) => e.card === card)),
+        [current, card]
+    );
 
     const pWins = tallies?.pWins ?? 0;
     const bWins = tallies?.bWins ?? 0;
@@ -166,20 +177,49 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
 
                         {/* ---- By rule -------------------------------------- */}
                         <h3>By rule</h3>
+                        <p className="stat-note">
+                            Every hand a rule fired on, whether or not it won the call —
+                            this is what decides conflicts. A rule needs {MIN_FIRINGS} firings
+                            before its rate counts.
+                        </p>
                         <table className="stats-table">
                             <thead>
-                                <tr><th>Rule</th><th>n</th><th>Hit rate</th></tr>
+                                <tr>
+                                    <th>Rule</th>
+                                    <th colSpan="2">This card</th>
+                                    <th colSpan="2">Overall</th>
+                                </tr>
                             </thead>
                             <tbody>
-                                {scored(s.bySource).map(([source, t]) => (
-                                    <tr key={source}>
-                                        <td>{source.replace(/-/g, ' ')}</td>
-                                        <td>{t.n}</td>
-                                        <td><Rate tally={t} /></td>
-                                    </tr>
-                                ))}
+                                {RULES.map((rule) => {
+                                    const here = sessionRecords.get(rule.id);
+                                    const all = overallRecords.get(rule.id);
+                                    if (!here && !all) return null;
+                                    const show = (rec) => {
+                                        if (!rec || rec.n === 0) return <span className="stat-muted">—</span>;
+                                        const ci = wilsonInterval(rec.correct, rec.n);
+                                        const thin = rec.n < MIN_FIRINGS;
+                                        return (
+                                            <span className={thin ? 'stat-muted' : undefined}>
+                                                {pct(ci.estimate)}
+                                            </span>
+                                        );
+                                    };
+                                    return (
+                                        <tr key={rule.id}>
+                                            <td>{rule.id.replace(/-/g, ' ')}</td>
+                                            <td>{here ? here.n : 0}</td>
+                                            <td>{show(here)}</td>
+                                            <td>{all ? all.n : 0}</td>
+                                            <td>{show(all)}</td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
+                        <p className="stat-note stat-muted">
+                            Greyed rates have fewer than {MIN_FIRINGS} firings and are not yet used.
+                        </p>
 
                         {/* ---- By confidence -------------------------------- */}
                         <h3>By C-Level</h3>
@@ -236,16 +276,13 @@ const StatsModal = ({ tallies, log, pendingSync, syncError, onClearLog, onClose 
                         ` · ${otherEngines.length} older engine version${otherEngines.length > 1 ? 's' : ''} excluded`}
                 </p>
                 <p className="stat-note stat-muted">Engine: {ENGINE_VERSION}</p>
-                <button
-                    className="delete-button"
-                    onClick={() => {
-                        if (window.confirm(
-                            'Delete every recorded prediction? This cannot be undone, and rebuilding ' +
-                            'the record takes thousands of hands.'
-                        )) onClearLog();
-                    }}
-                >
-                    Clear decision log
+                {/* There used to be a "clear the log" button here. The log is
+                    the engine's memory now -- every rule's record comes out of
+                    it, and nothing restores it from the server -- so one tap
+                    was total amnesia in exchange for nothing. Saving a copy is
+                    the useful thing to be able to do. */}
+                <button className="load-button" onClick={onExportLog}>
+                    Download decision log
                 </button>
             </div>
         </div>

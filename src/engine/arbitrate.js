@@ -2,14 +2,10 @@
 //
 // Settles conflicts between rules by their track record.
 //
-// The weight is a rule's hit rate shrunk toward an even split, by an amount
-// that depends on how little evidence there is:
-//
-//     weight = (correct + k/2) / (n + k)
-//
-// A rule with 6 of 10 comes out near 51%, not 60%; a rule with 600 of 1000
-// stays near 60%. A rule with no record sits at exactly 50%, so it outranks a
-// rule measured to be bad and loses to one measured to be good.
+// The weight is a rule's measured hit rate, plain, once it has fired enough
+// times to have one. Below that floor it sits neutral: it outranks a rule
+// measured to be bad and loses to one measured to be good, but makes no claim
+// of its own.
 //
 // This started out as the Wilson LOWER bound, which sounds more rigorous and
 // is wrong for the job. Measured on real hands it ranked `pattern` (49.3% over
@@ -25,13 +21,14 @@
 import { ENGINE_VERSION } from './version';
 
 /**
- * Strength of the even-split prior, in hands. A rule needs about this many
- * firings before its own rate outweighs the prior.
+ * Firings a rule needs before its hit rate is used at all.
  *
- * Deliberately not tuned against the backtest: picking it to maximise a score
- * on a fixed set of hands is how you manufacture an edge that is not there.
+ * Below this it sits neutral rather than being trusted or distrusted, because
+ * a rate over a handful of hands is not a rate. Without a floor, a rule at 60%
+ * over 20 firings outranks one at 57% over 457 -- and the first of those is
+ * noise: its interval runs from 39% to 78%.
  */
-export const PRIOR_STRENGTH = 25;
+export const MIN_FIRINGS = 20;
 
 /** Where a rule with no record sits: neutral, neither trusted nor distrusted. */
 export const NO_RECORD_WEIGHT = 0.5;
@@ -86,10 +83,10 @@ export const applyToRecords = (records, entry, engine = ENGINE_VERSION) => {
     return records;
 };
 
-/** A rule's weight: its hit rate, shrunk toward even by how thin the record is. */
-export const weightFor = (record, k = PRIOR_STRENGTH) => {
-    if (!record || record.n === 0) return NO_RECORD_WEIGHT;
-    return (record.correct + k / 2) / (record.n + k);
+/** A rule's weight: its measured hit rate, once it has enough firings to have one. */
+export const weightFor = (record, minFirings = MIN_FIRINGS) => {
+    if (!record || record.n < minFirings) return NO_RECORD_WEIGHT;
+    return record.correct / record.n;
 };
 
 /**
