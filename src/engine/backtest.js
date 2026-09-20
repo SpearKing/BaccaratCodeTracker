@@ -17,7 +17,7 @@ import { predictNextHand } from './predict';
 import { makeEntry } from './decisionLog';
 import { summarise } from './stats';
 import { createModel, predict, learn, callFor, logLoss, brier, BASE_PRIOR } from './model';
-import { applyToRecords } from './arbitrate';
+import { applyToRecords, applyToHeadToHead } from './arbitrate';
 
 /**
  * Reconstructs the decision log for one already-played card.
@@ -26,7 +26,7 @@ import { applyToRecords } from './arbitrate';
  * to replay arbitration as it would really run: a rule's weight on any hand
  * comes only from hands already seen, so nothing leaks backwards.
  */
-export const replayCard = (cardName, hands, records = new Map()) => {
+export const replayCard = (cardName, hands, records = new Map(), pairs = new Map()) => {
     const entries = [];
 
     deriveGrid(hands, hands.length + 5, ({ grid, rowIdx, hand, parentRowIdx }) => {
@@ -34,7 +34,7 @@ export const replayCard = (cardName, hands, records = new Map()) => {
         // the predictor wants. Zero means nothing has been decided yet.
         const prediction =
             parentRowIdx > 0
-                ? predictNextHand(grid, computeHighlights(grid, grid[0].length), parentRowIdx, records)
+                ? predictNextHand(grid, computeHighlights(grid, grid[0].length), parentRowIdx, records, pairs)
                 : null;
 
         const entry = makeEntry({
@@ -48,6 +48,7 @@ export const replayCard = (cardName, hands, records = new Map()) => {
 
         entries.push(entry);
         applyToRecords(records, entry);
+        applyToHeadToHead(pairs, entry);
     });
 
     return entries;
@@ -59,6 +60,7 @@ export const replaySavedCards = (games, { minHands = 1 } = {}) => {
     let entries = [];
     // Shared so records accumulate across cards, as they do in real play.
     const records = new Map();
+    const pairs = new Map();
 
     Object.keys(games || {}).forEach((name) => {
         const scorecard = games[name]?.scorecard;
@@ -68,12 +70,12 @@ export const replaySavedCards = (games, { minHands = 1 } = {}) => {
         const decided = hands.filter((h) => h === 'P' || h === 'B').length;
         if (decided < minHands) return;
 
-        const cardEntries = replayCard(name, hands, records);
+        const cardEntries = replayCard(name, hands, records, pairs);
         perCard.push({ name, hands: hands.length, decided, entries: cardEntries.length });
         entries = entries.concat(cardEntries);
     });
 
-    return { entries, perCard, records, summary: summarise(entries) };
+    return { entries, perCard, records, pairs, summary: summarise(entries) };
 };
 
 /** Saved cards as ordered hand sequences, oldest card first. */

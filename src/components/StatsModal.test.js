@@ -187,3 +187,30 @@ describe('per-rule records', () => {
         expect(screen.queryByText(/clear decision log/i)).not.toBeInTheDocument();
     });
 });
+
+describe('the clash table', () => {
+    const clash = (i, aCall, bCall, actual) => ({
+        ...entry(i, aCall, actual),
+        card: 'Tonight',
+        candidates: [{ id: 'pattern', call: aCall }, { id: 'rule-of-three-banker', call: bCall }],
+    });
+
+    it('shows who wins when two rules call opposite sides', () => {
+        const log = Array.from({ length: 100 }, (_, i) =>
+            clash(i + 1, 'P', 'B', i < 60 ? 'B' : 'P')     // banker right 60%
+        );
+        render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
+        const body = document.body.textContent;
+        expect(body).toMatch(/When rules disagree/);
+        expect(body).toMatch(/pattern v rule of three banker/);
+        expect(body).toMatch(/rule of three banker 60\.0%/);
+    });
+
+    it('calls a dead heat even rather than picking a side', () => {
+        const log = Array.from({ length: 100 }, (_, i) =>
+            clash(i + 1, 'P', 'B', i < 50 ? 'B' : 'P')
+        );
+        render(<StatsModal tallies={tallies} log={log} card="Tonight" onClose={noop} onExportLog={noop} />);
+        expect(document.body.textContent).toMatch(/even/);
+    });
+});

@@ -19,10 +19,10 @@ import { predictNextHand } from '../engine/predict';
  * -- but it stays in the signature because callers already pass it, and
  * removing it is Phase 3's business.
  */
-export const usePrediction = (scorecard, lastWinType, lastWinRow, highlightedCells, records) => {
+export const usePrediction = (scorecard, lastWinType, lastWinRow, highlightedCells, records, pairs) => {
     const result = useMemo(
-        () => predictNextHand(scorecard, highlightedCells, lastWinRow, records),
-        [scorecard, lastWinRow, highlightedCells, records]
+        () => predictNextHand(scorecard, highlightedCells, lastWinRow, records, pairs),
+        [scorecard, lastWinRow, highlightedCells, records, pairs]
     );
 
     return {

@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { summarise, beatsBreakEven, wilsonInterval } from '../engine/stats';
 import { dedupe, byEngine } from '../engine/decisionLog';
-import { recordsFrom, MIN_FIRINGS } from '../engine/arbitrate';
+import { recordsFrom, headToHeadFrom, MIN_FIRINGS } from '../engine/arbitrate';
 import { ENGINE_VERSION } from '../engine/predict';
 import { RULES } from '../engine/rules';
 
@@ -51,6 +51,19 @@ const StatsModal = ({ tallies, log, card, pendingSync, syncError, onExportLog, o
     const sessionRecords = useMemo(
         () => recordsFrom(current.filter((e) => e.card === card)),
         [current, card]
+    );
+
+    // How rules have fared against each other. This is what settles a conflict
+    // once a pair has clashed often enough, so it is worth being able to see.
+    const pairs = useMemo(() => headToHeadFrom(current), [current]);
+    const clashes = useMemo(
+        () => [...pairs.entries()]
+            .map(([key, rec]) => {
+                const [a, b] = key.split('|');
+                return { a, b, n: rec.n, aRate: rec.firstWins / rec.n };
+            })
+            .sort((x, y) => y.n - x.n),
+        [pairs]
     );
 
     const pWins = tallies?.pWins ?? 0;
@@ -220,6 +233,41 @@ const StatsModal = ({ tallies, log, card, pendingSync, syncError, onExportLog, o
                         <p className="stat-note stat-muted">
                             Greyed rates have fewer than {MIN_FIRINGS} firings and are not yet used.
                         </p>
+
+                        {clashes.length > 0 && (
+                            <>
+                                <h3>When rules disagree</h3>
+                                <p className="stat-note">
+                                    Who has been right when these two called opposite sides. This
+                                    settles the conflict once the pair has clashed {MIN_FIRINGS} times —
+                                    a rule can be good in general and poor against one particular
+                                    opponent, and it is the second that matters here.
+                                </p>
+                                <table className="stats-table">
+                                    <thead>
+                                        <tr><th>Clash</th><th>n</th><th>Winner</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {clashes.map(({ a, b, n, aRate }) => {
+                                            const leader = aRate >= 0.5 ? a : b;
+                                            const rate = aRate >= 0.5 ? aRate : 1 - aRate;
+                                            const thin = n < MIN_FIRINGS;
+                                            return (
+                                                <tr key={`${a}|${b}`}>
+                                                    <td>{a.replace(/-/g, ' ')} v {b.replace(/-/g, ' ')}</td>
+                                                    <td>{n}</td>
+                                                    <td className={thin ? 'stat-muted' : undefined}>
+                                                        {aRate === 0.5
+                                                            ? 'even'
+                                                            : `${leader.replace(/-/g, ' ')} ${pct(rate)}`}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </>
+                        )}
 
                         {/* ---- By confidence -------------------------------- */}
                         <h3>By C-Level</h3>

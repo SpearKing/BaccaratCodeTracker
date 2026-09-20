@@ -47,11 +47,11 @@ const drivingPattern = (scorecard, highlights, anchorRow) => {
 /**
  * Predicts the hand that follows `rowIdx`.
  *
- * `records` is each rule's history, built from decisions BEFORE this one --
- * see arbitrate.recordsFrom. Passing nothing simply means no rule has a record
- * yet, which is the correct state on a fresh log.
+ * `records` is each rule's overall history and `pairs` is how rules have fared
+ * against each other, both built from decisions BEFORE this one. Passing
+ * nothing means nothing has been recorded yet, which is correct on a fresh log.
  */
-export const predictNextHand = (scorecard, highlightedCells, rowIdx, records) => {
+export const predictNextHand = (scorecard, highlightedCells, rowIdx, records, pairs) => {
     const none = {
         prediction: null, confidence: 0, source: null, pattern: null,
         candidates: [], contested: false,
@@ -73,7 +73,8 @@ export const predictNextHand = (scorecard, highlightedCells, rowIdx, records) =>
     const context = { scorecard, highlights, anchorRow, hands };
     const { call, winner, contested, candidates } = arbitrate(
         firingRules(context),
-        records ?? new Map()
+        records ?? new Map(),
+        pairs ?? new Map()
     );
 
     // C-Level is still the count of highlighted cells on the row. Measured, it

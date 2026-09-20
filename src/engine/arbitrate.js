@@ -2,10 +2,19 @@
 //
 // Settles conflicts between rules by their track record.
 //
-// The weight is a rule's measured hit rate, plain, once it has fired enough
-// times to have one. Below that floor it sits neutral: it outranks a rule
-// measured to be bad and loses to one measured to be good, but makes no claim
-// of its own.
+// A conflict is settled by how the rules involved have done AGAINST EACH OTHER,
+// not by their rates in general. Those are different questions. `pattern` sits
+// near 49% across every board it fires on, but the boards where it collides
+// with `rule-of-three-banker` are specifically three-banker boards, and its
+// rate there is its own number. Conditioning on the conflict uses it;
+// comparing overall rates averages it away.
+//
+// Head-to-head is the better evidence and the thinner evidence, so it is used
+// where it exists and backed off where it does not:
+//
+//   1. the pair's own record, once they have clashed enough times
+//   2. failing that, each rule's overall hit rate
+//   3. failing that, neutral -- no claim either way
 //
 // This started out as the Wilson LOWER bound, which sounds more rigorous and
 // is wrong for the job. Measured on real hands it ranked `pattern` (49.3% over
@@ -64,6 +73,52 @@ export const recordsFrom = (log, engine = ENGINE_VERSION) => {
     return records;
 };
 
+const pairKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+
+/**
+ * How each pair of rules has done when they disagreed.
+ *
+ * Stored once per unordered pair as { n, firstWins }, where `first` is the
+ * lexically smaller id. A conflict is zero-sum -- exactly one side is right on
+ * a decided hand -- so the other rate is one minus this one.
+ */
+export const headToHeadFrom = (log, engine = ENGINE_VERSION) => {
+    const pairs = new Map();
+    (log || []).forEach((entry) => applyToHeadToHead(pairs, entry, engine));
+    return pairs;
+};
+
+/** Folds one decision into an existing head-to-head map. */
+export const applyToHeadToHead = (pairs, entry, engine = ENGINE_VERSION) => {
+    if (!entry || (entry.actual !== 'P' && entry.actual !== 'B')) return pairs;
+    if (engine && entry.engine !== engine) return pairs;
+
+    const called = (entry.candidates || []).filter((c) => c.call === 'P' || c.call === 'B');
+    for (let i = 0; i < called.length; i++) {
+        for (let j = i + 1; j < called.length; j++) {
+            const a = called[i];
+            const b = called[j];
+            if (a.call === b.call) continue;          // agreement is not a contest
+            const key = pairKey(a.id, b.id);
+            if (!pairs.has(key)) pairs.set(key, { n: 0, firstWins: 0 });
+            const rec = pairs.get(key);
+            rec.n += 1;
+            const firstId = a.id < b.id ? a.id : b.id;
+            const firstCall = a.id === firstId ? a.call : b.call;
+            if (firstCall === entry.actual) rec.firstWins += 1;
+        }
+    }
+    return pairs;
+};
+
+/** How often `id` has been right when it clashed with `opponentId`. */
+export const headToHeadRate = (pairs, id, opponentId, minFirings = MIN_FIRINGS) => {
+    const rec = pairs?.get(pairKey(id, opponentId));
+    if (!rec || rec.n < minFirings) return null;
+    const firstWinRate = rec.firstWins / rec.n;
+    return id < opponentId ? firstWinRate : 1 - firstWinRate;
+};
+
 /**
  * Folds one decision into an existing record map.
  *
@@ -96,19 +151,37 @@ export const weightFor = (record, minFirings = MIN_FIRINGS) => {
  * order rules are declared. The two fallbacks only matter early on, when no
  * rule has a record yet and there is genuinely nothing to arbitrate with.
  */
-export const arbitrate = (candidates, records) => {
+export const arbitrate = (candidates, records, pairs) => {
     if (!candidates || candidates.length === 0) {
         return { call: null, winner: null, contested: false, candidates: [] };
     }
 
-    const scored = candidates.map((c, index) => ({
-        id: c.rule.id,
-        call: c.call,
-        specificity: c.rule.specificity ?? 0,
-        record: records?.get(c.rule.id) || null,
-        weight: weightFor(records?.get(c.rule.id)),
-        index,
-    }));
+    const scored = candidates.map((c, index) => {
+        const id = c.rule.id;
+
+        // Against every candidate calling the other way, how has this one
+        // actually fared? Averaged across opponents, which for the usual case
+        // of two rules clashing is simply the one pairwise rate.
+        const rates = candidates
+            .filter((o) => o.call !== c.call)
+            .map((o) => headToHeadRate(pairs, id, o.rule.id))
+            .filter((r) => r !== null);
+
+        const headToHead = rates.length
+            ? rates.reduce((a, b) => a + b, 0) / rates.length
+            : null;
+
+        return {
+            id,
+            call: c.call,
+            specificity: c.rule.specificity ?? 0,
+            record: records?.get(id) || null,
+            headToHead,
+            weight: headToHead ?? weightFor(records?.get(id)),
+            basis: headToHead !== null ? 'head-to-head' : (records?.get(id)?.n >= MIN_FIRINGS ? 'overall' : 'none'),
+            index,
+        };
+    });
 
     const ranked = [...scored].sort((a, b) =>
         b.weight - a.weight ||

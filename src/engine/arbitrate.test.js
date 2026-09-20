@@ -1,6 +1,9 @@
 // src/engine/arbitrate.test.js
 
-import { arbitrate, recordsFrom, weightFor, NO_RECORD_WEIGHT } from './arbitrate';
+import {
+    arbitrate, recordsFrom, weightFor, NO_RECORD_WEIGHT,
+    headToHeadFrom, headToHeadRate,
+} from './arbitrate';
 import { ENGINE_VERSION } from './version';
 
 // Records are scoped to the running engine, so fixtures have to name it.
@@ -142,5 +145,64 @@ describe('records are scoped to one engine version', () => {
     it('skips pre-v2 entries, which carry no candidates', () => {
         const r = recordsFrom([{ engine: 'arbitrated@2', actual: 'P', predicted: 'P' }]);
         expect(r.size).toBe(0);
+    });
+});
+
+describe('head-to-head records', () => {
+    const clash = (aCall, bCall, actual) => here({
+        actual,
+        candidates: [{ id: 'alpha', call: aCall }, { id: 'beta', call: bCall }],
+    });
+
+    it('counts only hands where the two disagreed', () => {
+        const pairs = headToHeadFrom([
+            clash('P', 'B', 'P'),
+            clash('B', 'B', 'B'),   // agreement is not a contest
+            clash('P', 'B', 'B'),
+        ]);
+        expect(pairs.get('alpha|beta').n).toBe(2);
+    });
+
+    it('credits whichever side was right', () => {
+        const pairs = headToHeadFrom([clash('P', 'B', 'P'), clash('P', 'B', 'P'), clash('P', 'B', 'B')]);
+        expect(headToHeadRate(pairs, 'alpha', 'beta', 1)).toBeCloseTo(2 / 3, 10);
+        // Zero-sum: the other side is one minus.
+        expect(headToHeadRate(pairs, 'beta', 'alpha', 1)).toBeCloseTo(1 / 3, 10);
+    });
+
+    it('withholds a rate until the pair has clashed enough times', () => {
+        const pairs = headToHeadFrom([clash('P', 'B', 'P')]);
+        expect(headToHeadRate(pairs, 'alpha', 'beta')).toBeNull();
+    });
+
+    it('prefers the pair record over the rules overall rates', () => {
+        // beta looks better overall, but loses to alpha whenever they clash.
+        const records = recordsOf({
+            alpha: { n: 500, correct: 240 },   // 48%
+            beta: { n: 500, correct: 300 },    // 60%
+        });
+        const pairs = new Map([['alpha|beta', { n: 100, firstWins: 70 }]]);
+
+        const withPairs = arbitrate([cand('alpha', 'P'), cand('beta', 'B')], records, pairs);
+        const withoutPairs = arbitrate([cand('alpha', 'P'), cand('beta', 'B')], records, new Map());
+
+        expect(withPairs.winner).toBe('alpha');
+        expect(withoutPairs.winner).toBe('beta');
+    });
+
+    it('says which evidence it used', () => {
+        const records = recordsOf({ alpha: { n: 500, correct: 240 }, beta: { n: 500, correct: 300 } });
+        const pairs = new Map([['alpha|beta', { n: 100, firstWins: 70 }]]);
+        const r = arbitrate([cand('alpha', 'P'), cand('beta', 'B')], records, pairs);
+        expect(r.candidates.every((c) => c.basis === 'head-to-head')).toBe(true);
+
+        const fallback = arbitrate([cand('alpha', 'P'), cand('beta', 'B')], records, new Map());
+        expect(fallback.candidates.every((c) => c.basis === 'overall')).toBe(true);
+    });
+
+    it('falls back to overall rates when only some opponents have a pair record', () => {
+        const records = recordsOf({ alpha: { n: 500, correct: 300 }, gamma: { n: 500, correct: 200 } });
+        const r = arbitrate([cand('alpha', 'P'), cand('gamma', 'B')], records, new Map());
+        expect(r.winner).toBe('alpha');
     });
 });
