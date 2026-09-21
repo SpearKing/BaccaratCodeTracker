@@ -188,6 +188,7 @@ function App() {
                     log={live}
                     testCount={testCount}
                     card={gameManagement.currentScorecardName}
+                    savedCards={gameManagement.allSavedScorecards}
                     pendingSync={pendingSync}
                     syncError={syncError}
                     onExportLog={handleExportLog}

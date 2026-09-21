@@ -15,6 +15,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LAST_ACTIVE_SCORECARD_NAME_KEY, DEFAULT_GAME_NAME, API_URL } from '../utils/constants';
 import { toStored, fromStored } from '../engine/cardFormat';
+import { metaFrom, metaPayload, EMPTY_META } from '../engine/cardMeta';
 
 const formatDate = (dateString) => { if (!dateString) return ''; const date = new Date(dateString); const offset = date.getTimezoneOffset(); const adjustedDate = new Date(date.getTime() + (offset * 60 * 1000)); const month = (adjustedDate.getMonth() + 1).toString().padStart(2, '0'); const day = adjustedDate.getDate().toString().padStart(2, '0'); const year = adjustedDate.getFullYear().toString().slice(-2); return `${month}/${day}/${year}`; };
 const toTitleCase = (str) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
@@ -25,6 +26,12 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
     const [saveGameInput, setSaveGameInput] = useState('');
     const [loadGameSelect, setLoadGameSelect] = useState('');
     const [saveDate, setSaveDate] = useState(new Date().toISOString().split('T')[0]);
+
+    // What kind of game this card is being recorded at. It rides along in the
+    // save payload rather than in the name, because the name could not carry it
+    // reliably -- "L'auberge Video" and "L'auberge Revised" are a machine and a
+    // table, and no reading of those names says so.
+    const [cardMeta, setCardMeta] = useState(EMPTY_META);
 
     // Whether the last save reached the server. Failures used to disappear into
     // a console.error, so a sleeping backend looked exactly like success.
@@ -37,7 +44,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
             const response = await fetch(`${API_URL}/games`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, data: toStored(hands), stats: stats || {} }),
+                body: JSON.stringify({ name, data: toStored(hands, metaPayload(cardMeta)), stats: stats || {} }),
             });
             if (!response.ok) throw new Error(`Server returned ${response.status}`);
             setSaveState({ status: 'saved', at: Date.now(), error: null });
@@ -47,7 +54,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
             setSaveState((prev) => ({ status: 'failed', at: prev.at, error: error.message }));
             return false;
         }
-    }, [hands, stats]);
+    }, [hands, stats, cardMeta]);
 
     const loadAllGamesFromDB = useCallback(async () => {
         try {
@@ -70,6 +77,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         const recovered = fromStored(last);
         if (recovered.length > 0) {
             loadHands(recovered);
+            setCardMeta(metaFrom(last));
             setCurrentScorecardName(DEFAULT_GAME_NAME);
         }
     }, [allSavedScorecards, restoredFromLocal, loadHands]);
@@ -77,12 +85,12 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
     const handleQuickSave = useCallback(async () => {
         if (!currentScorecardName) return alert('No active game to save.');
         if (await save(currentScorecardName)) {
-            setAllSavedScorecards((prev) => ({ ...prev, [currentScorecardName]: toStored(hands) }));
+            setAllSavedScorecards((prev) => ({ ...prev, [currentScorecardName]: toStored(hands, metaPayload(cardMeta)) }));
             alert(`Game "${currentScorecardName}" saved successfully!`);
         } else {
             alert('Could not reach the server. The card is still safe on this device.');
         }
-    }, [currentScorecardName, save, hands]);
+    }, [currentScorecardName, save, hands, cardMeta]);
 
     const handleSaveAs = useCallback(async () => {
         const nameToSave = saveGameInput.trim();
@@ -97,7 +105,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         while (existingNames.includes(finalName)) { counter++; finalName = `${processedBaseName} (${counter}) - ${formattedDate}`; }
 
         if (await save(finalName)) {
-            setAllSavedScorecards((prev) => ({ ...prev, [finalName]: toStored(hands) }));
+            setAllSavedScorecards((prev) => ({ ...prev, [finalName]: toStored(hands, metaPayload(cardMeta)) }));
             setCurrentScorecardName(finalName);
             setLoadGameSelect(finalName);
             localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, finalName);
@@ -106,7 +114,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         } else {
             alert('Could not reach the server. The card is still safe on this device.');
         }
-    }, [saveGameInput, saveDate, allSavedScorecards, save, hands]);
+    }, [saveGameInput, saveDate, allSavedScorecards, save, hands, cardMeta]);
 
     const handleLoadSelectedGame = useCallback(() => {
         if (!loadGameSelect || !allSavedScorecards[loadGameSelect]) {
@@ -114,6 +122,9 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         }
         // fromStored reads both the current shape and the old full-grid saves.
         loadHands(fromStored(allSavedScorecards[loadGameSelect]));
+        // Bring its classification up with it, so re-saving a card cannot
+        // silently overwrite the type with whatever was last on screen.
+        setCardMeta(metaFrom(allSavedScorecards[loadGameSelect]));
         setCurrentScorecardName(loadGameSelect);
         localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, loadGameSelect);
         alert(`Scorecard "${loadGameSelect}" loaded!`);
@@ -145,12 +156,14 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         setCurrentScorecardName(DEFAULT_GAME_NAME);
         setSaveGameInput('');
         setLoadGameSelect('');
+        setCardMeta(EMPTY_META);
     }, [resetScorecard]);
 
     return {
         saveState, allSavedScorecards, currentScorecardName,
         saveGameInput, setSaveGameInput, saveDate, setSaveDate,
         loadGameSelect, setLoadGameSelect,
+        cardMeta, setCardMeta,
         handleQuickSave, handleSaveAs, handleLoadSelectedGame,
         handleDeleteSelectedGame, resetGameManagementState,
     };

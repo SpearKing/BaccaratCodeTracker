@@ -85,6 +85,20 @@ const StatsHelp = () => (
             choosing its spots.
         </Term>
 
+        <h3>Machine or table</h3>
+        <p>The same predictions, split by what you were playing on. This is the most
+            important division in the data and the one worth keeping clean.</p>
+        <p>A video machine reshuffles continuously or deals from a random number
+            generator. It has <em>no</em> physical shuffle to leave a trace, no cut card,
+            no penetration and no dealer changes — so every physical reason a pattern
+            might exist is absent there by construction. That makes machine play the
+            control, not a lesser version of table play, and pooling the two hides both.</p>
+        <p>Cards saved before this existed show as <strong>Not recorded</strong>. Nothing
+            is guessed from the card’s name, because names could not carry it reliably —
+            “L’auberge Video” and “L’auberge Revised” are a machine and a table. To fix a
+            card: load it, set <strong>Table</strong> beside Save, and save it again. The
+            hands already logged against it are reclassified with it.</p>
+
         <h3>Compared with betting blind</h3>
         <p>The same hands, scored as if you had ignored the engine entirely and just bet Banker
             every time, or Player every time, or always repeated the last result, or always

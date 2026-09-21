@@ -177,6 +177,10 @@ input:checked + .slider:before { transform: translateX(22px); }
 .prediction-rule { font-size: 0.8em; opacity: 0.8; }
 .stats-modal-content h3.stats-subhead { margin-top: 10px; font-size: 0.9em; opacity: 0.7; font-weight: normal; }
 
+.card-meta-row { display: flex; gap: 8px; width: 100%; margin-top: 8px; flex-wrap: wrap; }
+.card-meta-row label { display: flex; flex-direction: column; gap: 3px; font-size: 0.75em; opacity: 0.8; flex: 1 1 110px; }
+.card-meta-row select, .card-meta-row input { padding: 7px; font-size: 0.9em; border: 1px solid var(--border-color); border-radius: 5px; background-color: var(--grid-cell-bg); color: var(--text-color); width: 100%; box-sizing: border-box; }
+
 /* --- Simulator ------------------------------------------------------------ */
 .sim-button { background-color: var(--button-load-bg); }
 .sim-modal { max-width: 760px; }

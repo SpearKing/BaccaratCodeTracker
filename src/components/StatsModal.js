@@ -1,11 +1,12 @@
 // src/components/StatsModal.js
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { summarise, beatsBreakEven, wilsonInterval } from '../engine/stats';
+import { summarise, beatsBreakEven, wilsonInterval, tally } from '../engine/stats';
 import { dedupe, byEngine } from '../engine/decisionLog';
 import { recordsFrom, headToHeadFrom, MIN_FIRINGS } from '../engine/arbitrate';
 import { ENGINE_VERSION } from '../engine/predict';
 import { RULES, ruleLabel } from '../engine/rules';
 import StatsHelp from './StatsHelp';
+import { TABLE_TYPES, metaIndex, splitByTableType, unclassifiedCards } from '../engine/cardMeta';
 
 const pct = (x) => (x === null || x === undefined ? '--' : `${(x * 100).toFixed(1)}%`);
 const signed = (x) => (x === null || x === undefined ? '--' : `${x >= 0 ? '+' : ''}${x.toFixed(3)}`);
@@ -32,7 +33,7 @@ const Verdict = ({ tally: t }) => {
     return <span className="verdict-unknown">indistinguishable from chance</span>;
 };
 
-const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError, onExportLog, onImportLog, onClose }) => {
+const StatsModal = ({ tallies, log, card, savedCards, testCount = 0, pendingSync, syncError, onExportLog, onImportLog, onClose }) => {
     const [showHelp, setShowHelp] = useState(false);
     const entries = useMemo(() => dedupe(log || []), [log]);
 
@@ -52,6 +53,19 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
     );
 
     const s = useMemo(() => summarise(current), [current]);
+
+    // Decisions grouped by the kind of game they were recorded at. The join is
+    // on the card's stored metadata, never on its name, so classifying a card
+    // later retroactively corrects every hand already logged against it.
+    const byTable = useMemo(() => {
+        const index = metaIndex(savedCards);
+        const groups = splitByTableType(current, index);
+        const out = new Map();
+        groups.forEach((entries, type) => out.set(type, tally(entries)));
+        return out;
+    }, [current, savedCards]);
+
+    const unclassified = useMemo(() => unclassifiedCards(savedCards), [savedCards]);
 
     // Each rule's record from every hand it FIRED on, win or lose -- which is
     // what arbitration actually weighs. That differs from "by rule" below,
@@ -210,6 +224,41 @@ const StatsModal = ({ tallies, log, card, testCount = 0, pendingSync, syncError,
                                 At this hit rate it would take about {s.needed.toLocaleString()} predictions
                                 to tell a real edge from noise — roughly {shortfall.toLocaleString()} more
                                 than recorded so far.
+                            </p>
+                        )}
+
+                        {/* ---- Machine vs table ----------------------------- */}
+                        {/* The most important split in the data, and the one the
+                            card names could not carry. A video machine has no
+                            physical shuffle, no cut card and no burns, so every
+                            physical explanation for a pattern is absent there by
+                            construction -- which makes it the control arm, not a
+                            weaker sample. Pooling it with table play hides both. */}
+                        <h3>Machine or table</h3>
+                        <table className="stats-table">
+                            <thead>
+                                <tr><th>Recorded at</th><th>Bets</th><th>Hit rate</th><th>Per unit</th></tr>
+                            </thead>
+                            <tbody>
+                                {TABLE_TYPES.map((type) => {
+                                    const t = byTable.get(type.id);
+                                    if (!t || t.n === 0) return null;
+                                    return (
+                                        <tr key={type.id} className={type.id === 'table' ? 'row-highlight' : undefined}>
+                                            <td>{type.label}</td>
+                                            <td>{t.n}</td>
+                                            <td><Rate tally={t} /></td>
+                                            <td>{signed(t.evPerUnit)}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                        {unclassified.length > 0 && (
+                            <p className="stat-note">
+                                {unclassified.length} saved card{unclassified.length === 1 ? ' has' : 's have'} no
+                                table type yet. Load one, set Table under Save, and save it again — until then
+                                its hands sit in “Not recorded” and count towards neither arm.
                             </p>
                         )}
 

@@ -3,6 +3,7 @@ import React from 'react';
 import { DEFAULT_GAME_NAME } from '../utils/constants';
 import { ruleLabel } from '../engine/rules';
 import StealthIcon from './StealthIcon';
+import { TABLE_TYPES, SHUFFLES } from '../engine/cardMeta';
 
 const ControlPanel = ({
     onStealthClick, onStatsClick, onSimClick,
@@ -13,6 +14,7 @@ const ControlPanel = ({
     currentScorecardName,
     saveGameInput, setSaveGameInput,
     saveDate, setSaveDate,
+    cardMeta, setCardMeta,
     handleQuickSave, // New prop for quick save
     handleSaveAs, // Renamed for clarity
     loadGameSelect, setLoadGameSelect,
@@ -122,6 +124,44 @@ const ControlPanel = ({
                         <datalist id="game-presets"> {gameNamePresets.map(name => <option key={name} value={name} />)} </datalist>
                         <input type="date" className="date-picker" value={saveDate} onChange={(e) => setSaveDate(e.target.value)} />
                     </div>
+
+                    {/* What kind of game this is. A video machine has no shuffle
+                        to leave a trace, no cut card and no burns, so it is the
+                        control arm rather than a weaker version of table play --
+                        and pooling the two destroys both. This used to live in
+                        the card's name, where it could not be read reliably. */}
+                    <div className="card-meta-row">
+                        <label>
+                            Table
+                            <select
+                                value={cardMeta?.tableType || 'unknown'}
+                                onChange={(e) => setCardMeta({ ...cardMeta, tableType: e.target.value })}
+                            >
+                                {TABLE_TYPES.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label>
+                            Shuffle
+                            <select
+                                value={cardMeta?.shuffle || 'unknown'}
+                                onChange={(e) => setCardMeta({ ...cardMeta, shuffle: e.target.value })}
+                            >
+                                {SHUFFLES.map((s) => (
+                                    <option key={s.id} value={s.id}>{s.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label>
+                            Venue
+                            <input
+                                type="text" value={cardMeta?.venue || ''} placeholder="optional"
+                                onChange={(e) => setCardMeta({ ...cardMeta, venue: e.target.value })}
+                            />
+                        </label>
+                    </div>
+
                     <button onClick={handleSaveAs} className="save-button"> Save As New </button>
                 </div>
                 <hr className="divider" />
