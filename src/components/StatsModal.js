@@ -6,7 +6,11 @@ import { recordsFrom, headToHeadFrom, MIN_FIRINGS } from '../engine/arbitrate';
 import { ENGINE_VERSION } from '../engine/predict';
 import { RULES, ruleLabel } from '../engine/rules';
 import StatsHelp from './StatsHelp';
-import { TABLE_TYPES, metaIndex, splitByTableType, unclassifiedCards } from '../engine/cardMeta';
+import { TABLE_TYPES, metaIndex, splitByTableType, unclassifiedCards, typeOfEntry, tableTypeLabel } from '../engine/cardMeta';
+import {
+    loadCommitment, startCommitment, revealEarly, clearCommitment,
+    progressFor, shouldHide, DEFAULT_TARGET,
+} from '../engine/commitment';
 
 const pct = (x) => (x === null || x === undefined ? '--' : `${(x * 100).toFixed(1)}%`);
 const signed = (x) => (x === null || x === undefined ? '--' : `${x >= 0 ? '+' : ''}${x.toFixed(3)}`);
@@ -66,6 +70,16 @@ const StatsModal = ({ tallies, log, card, savedCards, testCount = 0, pendingSync
     }, [current, savedCards]);
 
     const unclassified = useMemo(() => unclassifiedCards(savedCards), [savedCards]);
+
+    // A test declared before its data was collected. While one is running the
+    // arm's rate is hidden -- everywhere, not only in this section, since a
+    // number visible anywhere is a number that can be stopped on.
+    const [commitment, setCommitment] = useState(loadCommitment);
+    const progress = useMemo(() => {
+        const index = metaIndex(savedCards);
+        return progressFor(current, (e) => typeOfEntry(e, index) === commitment?.arm, commitment);
+    }, [current, savedCards, commitment]);
+    const hideArm = shouldHide(progress);
 
     // Each rule's record from every hand it FIRED on, win or lose -- which is
     // what arbitration actually weighs. That differs from "by rule" below,
@@ -227,6 +241,104 @@ const StatsModal = ({ tallies, log, card, savedCards, testCount = 0, pendingSync
                             </p>
                         )}
 
+                        {/* ---- Pre-registered test -------------------------- */}
+                        <h3>Pre-registered test</h3>
+                        {!commitment ? (
+                            <>
+                                <p className="stat-note">
+                                    Fix the question and the sample size before collecting, and the
+                                    result means what it appears to mean. Simulated over 20,000 runs
+                                    of a rule set with <strong>no edge at all</strong>: checking once
+                                    at {DEFAULT_TARGET} bets called it a winner 5.6% of the time;
+                                    checking after every shoe and stopping when it looked good called
+                                    it a winner 16.6% of the time.
+                                </p>
+                                <button
+                                    type="button" className="load-button"
+                                    onClick={() => setCommitment(startCommitment({ target: DEFAULT_TARGET, arm: 'table' }))}
+                                >
+                                    Start: {DEFAULT_TARGET} physical-table bets
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <table className="stats-table">
+                                    <tbody>
+                                        <tr>
+                                            <td>Counting</td>
+                                            <td>
+                                                {tableTypeLabel(commitment.arm)} bets
+                                                <span className="stat-muted">
+                                                    {' '}· {(commitment.rules || []).map(ruleLabel).join(', ') || 'every rule'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr className="row-highlight">
+                                            <td>Progress</td>
+                                            <td>
+                                                <strong>{progress.bets}</strong> of {progress.target}
+                                                {!progress.complete && <> · {progress.remaining} to go</>}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>Started</td>
+                                            <td>{String(commitment.setAt).slice(0, 10)}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                                <div className="sim-progress">
+                                    <div style={{ width: `${Math.min(100, (progress.bets / progress.target) * 100)}%` }} />
+                                </div>
+
+                                {progress.complete && !progress.revealed && (
+                                    <p className="stat-note verdict-good">
+                                        Sample complete. The rate below is the answer to the question
+                                        you asked before you collected it.
+                                    </p>
+                                )}
+                                {progress.revealed && (
+                                    <p className="stat-note verdict-bad">
+                                        Looked at early, on {String(progress.revealedAt).slice(0, 10)},
+                                        at {progress.bets} of {progress.target} bets. The result below is
+                                        no longer a pre-registered one.
+                                    </p>
+                                )}
+                                {hideArm && (
+                                    <p className="stat-note">
+                                        The rate is sealed until {progress.target} bets. Keep playing and
+                                        recording as normal — {progress.remaining} to go, roughly{' '}
+                                        {Math.round(progress.remaining / 0.071 / 78)} shoes.
+                                    </p>
+                                )}
+
+                                <div className="sim-actions">
+                                    {hideArm && (
+                                        <button
+                                            type="button" className="delete-button"
+                                            onClick={() => {
+                                                if (window.confirm('Looking now ends the pre-registered test. It stays on the record. Continue?')) {
+                                                    setCommitment(revealEarly(commitment));
+                                                }
+                                            }}
+                                        >
+                                            Look anyway
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button" className="sim-chip"
+                                        onClick={() => {
+                                            if (window.confirm('Abandon this test? The count starts again from zero.')) {
+                                                clearCommitment();
+                                                setCommitment(null);
+                                            }
+                                        }}
+                                    >
+                                        Abandon
+                                    </button>
+                                </div>
+                            </>
+                        )}
+
                         {/* ---- Machine vs table ----------------------------- */}
                         {/* The most important split in the data, and the one the
                             card names could not carry. A video machine has no
@@ -243,12 +355,17 @@ const StatsModal = ({ tallies, log, card, savedCards, testCount = 0, pendingSync
                                 {TABLE_TYPES.map((type) => {
                                     const t = byTable.get(type.id);
                                     if (!t || t.n === 0) return null;
+                                    const sealed = hideArm && type.id === commitment.arm;
                                     return (
                                         <tr key={type.id} className={type.id === 'table' ? 'row-highlight' : undefined}>
                                             <td>{type.label}</td>
                                             <td>{t.n}</td>
-                                            <td><Rate tally={t} /></td>
-                                            <td>{signed(t.evPerUnit)}</td>
+                                            <td>
+                                                {sealed
+                                                    ? <span className="stat-muted">sealed — {progress.bets}/{progress.target}</span>
+                                                    : <Rate tally={t} />}
+                                            </td>
+                                            <td>{sealed ? <span className="stat-muted">—</span> : signed(t.evPerUnit)}</td>
                                         </tr>
                                     );
                                 })}
