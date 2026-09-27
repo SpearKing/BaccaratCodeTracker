@@ -75,6 +75,7 @@ const StatsModal = ({ tallies, log, card, savedCards, testCount = 0, pendingSync
     // arm's rate is hidden -- everywhere, not only in this section, since a
     // number visible anywhere is a number that can be stopped on.
     const [commitment, setCommitment] = useState(loadCommitment);
+    const [showEscape, setShowEscape] = useState(false);
     const progress = useMemo(() => {
         const index = metaIndex(savedCards);
         return progressFor(current, (e) => typeOfEntry(e, index) === commitment?.arm, commitment);
@@ -311,31 +312,61 @@ const StatsModal = ({ tallies, log, card, savedCards, testCount = 0, pendingSync
                                     </p>
                                 )}
 
-                                <div className="sim-actions">
-                                    {hideArm && (
-                                        <button
-                                            type="button" className="delete-button"
-                                            onClick={() => {
-                                                if (window.confirm('Looking now ends the pre-registered test. It stays on the record. Continue?')) {
-                                                    setCommitment(revealEarly(commitment));
-                                                }
-                                            }}
-                                        >
-                                            Look anyway
-                                        </button>
-                                    )}
+                                {/* Folded away, because the one action that can
+                                    ruin this test was a single tap from the panel
+                                    you check most often. Both ways out are still
+                                    here -- an escape hatch you cannot reach is
+                                    not a kindness when real money is involved --
+                                    but reaching them now takes three deliberate
+                                    steps rather than a misplaced thumb. */}
+                                {!showEscape ? (
                                     <button
-                                        type="button" className="sim-chip"
-                                        onClick={() => {
-                                            if (window.confirm('Abandon this test? The count starts again from zero.')) {
-                                                clearCommitment();
-                                                setCommitment(null);
-                                            }
-                                        }}
+                                        type="button" className="escape-toggle"
+                                        onClick={() => setShowEscape(true)}
                                     >
-                                        Abandon
+                                        End this test early…
                                     </button>
-                                </div>
+                                ) : (
+                                    <div className="escape-panel">
+                                        <p className="stat-note">
+                                            Both of these are permanent. Neither is needed to keep
+                                            playing — the count continues on its own.
+                                        </p>
+                                        <div className="sim-actions">
+                                            {hideArm && (
+                                                <button
+                                                    type="button" className="delete-button"
+                                                    onClick={() => {
+                                                        if (window.confirm('Looking now ends the pre-registered test. It stays on the record permanently. Continue?')) {
+                                                            setCommitment(revealEarly(commitment));
+                                                            setShowEscape(false);
+                                                        }
+                                                    }}
+                                                >
+                                                    Unseal the result
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button" className="sim-chip"
+                                                onClick={() => {
+                                                    if (window.confirm('Abandon this test? The count starts again from zero.')) {
+                                                        clearCommitment();
+                                                        setCommitment(null);
+                                                        setShowEscape(false);
+                                                    }
+                                                }}
+                                            >
+                                                Abandon and reset
+                                            </button>
+                                            <button
+                                                type="button" className="sim-chip"
+                                                onClick={() => setShowEscape(false)}
+                                            >
+                                                Never mind
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
 

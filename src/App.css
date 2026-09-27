@@ -185,6 +185,11 @@ input:checked + .slider:before { transform: translateX(22px); }
 .prediction-rule { font-size: 0.8em; opacity: 0.8; }
 .stats-modal-content h3.stats-subhead { margin-top: 10px; font-size: 0.9em; opacity: 0.7; font-weight: normal; }
 
+.escape-toggle { width: auto; margin-top: 10px; padding: 4px 0; background: none; border: none; font-size: 0.78em; opacity: 0.45; color: var(--text-color); text-decoration: underline; cursor: pointer; }
+.escape-toggle:hover { opacity: 0.8; }
+.escape-panel { margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--border-color); border-radius: 6px; }
+.escape-panel .stat-note { margin-top: 0; }
+
 .shoe-bar { display: flex; align-items: center; gap: 8px; width: 100%; padding: 2px 0 6px; flex-wrap: wrap; }
 .shoe-label { font-size: 0.8em; opacity: 0.7; }
 .shoe-chips { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
