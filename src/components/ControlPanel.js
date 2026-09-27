@@ -14,6 +14,7 @@ const ControlPanel = ({
     activeShoe = 0, shoeCount = 1, selectShoe, addShoe, deleteShoe,
     currentScorecardName,
     saveGameInput, setSaveGameInput,
+    saveLabel, setSaveLabel, venues = [],
     saveDate, setSaveDate,
     cardMeta, setCardMeta,
     handleQuickSave, // New prop for quick save
@@ -161,10 +162,28 @@ const ControlPanel = ({
                 <hr className="divider" />
                 <div className="save-game-section">
                     <div className="combo-and-date">
-                        <input list="game-presets" className="combo-textbox" value={saveGameInput} onChange={(e) => setSaveGameInput(e.target.value)} placeholder="Enter new name to save as..." />
-                        <datalist id="game-presets"> {gameNamePresets.map(name => <option key={name} value={name} />)} </datalist>
+                        {/* The venue list is every place already saved, so it
+                            grows by being used. Typing a new one adds it; typing
+                            a variant of one already there stores the spelling in
+                            use, which is what stops "Boomtown" and
+                            "Boomtown MS" becoming two casinos. */}
+                        <input
+                            list="game-presets" className="combo-textbox"
+                            value={saveGameInput}
+                            onChange={(e) => setSaveGameInput(e.target.value)}
+                            placeholder="Venue..."
+                        />
+                        <datalist id="game-presets">
+                            {(venues.length ? venues.map((v) => v.venue) : gameNamePresets)
+                                .map((name) => <option key={name} value={name} />)}
+                        </datalist>
                         <input type="date" className="date-picker" value={saveDate} onChange={(e) => setSaveDate(e.target.value)} />
                     </div>
+                    <input
+                        type="text" className="combo-textbox" value={saveLabel || ''}
+                        onChange={(e) => setSaveLabel(e.target.value)}
+                        placeholder="Label (optional) — e.g. Video, Revised, 2"
+                    />
 
                     {/* What kind of game this is. A video machine has no shuffle
                         to leave a trace, no cut card and no burns, so it is the
@@ -193,13 +212,6 @@ const ControlPanel = ({
                                     <option key={s.id} value={s.id}>{s.label}</option>
                                 ))}
                             </select>
-                        </label>
-                        <label>
-                            Venue
-                            <input
-                                type="text" value={cardMeta?.venue || ''} placeholder="optional"
-                                onChange={(e) => setCardMeta({ ...cardMeta, venue: e.target.value })}
-                            />
                         </label>
                     </div>
 

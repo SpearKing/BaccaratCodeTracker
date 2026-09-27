@@ -12,18 +12,21 @@
 // that the load dropdown filtered out, so the app wrote constantly to something
 // nothing could ever read.
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LAST_ACTIVE_SCORECARD_NAME_KEY, DEFAULT_GAME_NAME, API_URL } from '../utils/constants';
 import { toStored, shoesFrom } from '../engine/cardFormat';
 import { metaFrom, metaPayload, EMPTY_META } from '../engine/cardMeta';
+import { venuesFrom, canonicalVenue, saveNameFor } from '../engine/venues';
 
 const formatDate = (dateString) => { if (!dateString) return ''; const date = new Date(dateString); const offset = date.getTimezoneOffset(); const adjustedDate = new Date(date.getTime() + (offset * 60 * 1000)); const month = (adjustedDate.getMonth() + 1).toString().padStart(2, '0'); const day = adjustedDate.getDate().toString().padStart(2, '0'); const year = adjustedDate.getFullYear().toString().slice(-2); return `${month}/${day}/${year}`; };
-const toTitleCase = (str) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
 
 export const useGameManagement = ({ shoes, loadShoes, resetScorecard, restoredFromLocal, stats }) => {
     const [allSavedScorecards, setAllSavedScorecards] = useState({});
     const [currentScorecardName, setCurrentScorecardName] = useState(DEFAULT_GAME_NAME);
+    // The save-name box IS the venue picker. One place to enter it, so the
+    // name and the stored venue cannot disagree.
     const [saveGameInput, setSaveGameInput] = useState('');
+    const [saveLabel, setSaveLabel] = useState('');
     const [loadGameSelect, setLoadGameSelect] = useState('');
     const [saveDate, setSaveDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -38,13 +41,13 @@ export const useGameManagement = ({ shoes, loadShoes, resetScorecard, restoredFr
     const [saveState, setSaveState] = useState({ status: 'idle', at: null, error: null });
     const triedServerFallback = useRef(false);
 
-    const save = useCallback(async (name) => {
+    const save = useCallback(async (name, metaOverride) => {
         setSaveState((prev) => ({ ...prev, status: 'saving' }));
         try {
             const response = await fetch(`${API_URL}/games`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, data: toStored(shoes, metaPayload(cardMeta)), stats: stats || {} }),
+                body: JSON.stringify({ name, data: toStored(shoes, metaPayload(metaOverride || cardMeta)), stats: stats || {} }),
             });
             if (!response.ok) throw new Error(`Server returned ${response.status}`);
             setSaveState({ status: 'saved', at: Date.now(), error: null });
@@ -92,20 +95,27 @@ export const useGameManagement = ({ shoes, loadShoes, resetScorecard, restoredFr
         }
     }, [currentScorecardName, save, shoes, cardMeta]);
 
-    const handleSaveAs = useCallback(async () => {
-        const nameToSave = saveGameInput.trim();
-        if (!nameToSave) return alert('Please enter a name for the new save.');
-        if (nameToSave === DEFAULT_GAME_NAME) return alert(`The name "${DEFAULT_GAME_NAME}" is reserved.`);
+    /** Every place already played, most-used first. Feeds the venue dropdown. */
+    const venues = useMemo(() => venuesFrom(allSavedScorecards), [allSavedScorecards]);
 
-        const processedBaseName = toTitleCase(nameToSave);
+    const handleSaveAs = useCallback(async () => {
+        const venue = canonicalVenue(saveGameInput, venues);
+        if (!venue) return alert('Please choose or enter a venue for the new save.');
+        if (venue === DEFAULT_GAME_NAME) return alert(`The name "${DEFAULT_GAME_NAME}" is reserved.`);
+
         const formattedDate = formatDate(saveDate);
-        let finalName = `${processedBaseName} - ${formattedDate}`;
+        const base = saveNameFor(venue, saveLabel, '');
+        let finalName = `${base} - ${formattedDate}`;
         const existingNames = Object.keys(allSavedScorecards);
         let counter = 1;
-        while (existingNames.includes(finalName)) { counter++; finalName = `${processedBaseName} (${counter}) - ${formattedDate}`; }
+        while (existingNames.includes(finalName)) { counter++; finalName = `${base} (${counter}) - ${formattedDate}`; }
 
-        if (await save(finalName)) {
-            setAllSavedScorecards((prev) => ({ ...prev, [finalName]: toStored(shoes, metaPayload(cardMeta)) }));
+        // The venue is written from the same value the name was built from, so
+        // the two can never drift apart again.
+        setCardMeta((prev) => ({ ...prev, venue }));
+
+        if (await save(finalName, { ...cardMeta, venue })) {
+            setAllSavedScorecards((prev) => ({ ...prev, [finalName]: toStored(shoes, metaPayload({ ...cardMeta, venue })) }));
             setCurrentScorecardName(finalName);
             setLoadGameSelect(finalName);
             localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, finalName);
@@ -114,7 +124,7 @@ export const useGameManagement = ({ shoes, loadShoes, resetScorecard, restoredFr
         } else {
             alert('Could not reach the server. The card is still safe on this device.');
         }
-    }, [saveGameInput, saveDate, allSavedScorecards, save, shoes, cardMeta]);
+    }, [saveGameInput, saveLabel, saveDate, allSavedScorecards, save, shoes, cardMeta, venues]);
 
     const handleLoadSelectedGame = useCallback(() => {
         if (!loadGameSelect || !allSavedScorecards[loadGameSelect]) {
@@ -156,13 +166,15 @@ export const useGameManagement = ({ shoes, loadShoes, resetScorecard, restoredFr
         resetScorecard();
         setCurrentScorecardName(DEFAULT_GAME_NAME);
         setSaveGameInput('');
+        setSaveLabel('');
         setLoadGameSelect('');
         setCardMeta(EMPTY_META);
     }, [resetScorecard]);
 
     return {
         saveState, allSavedScorecards, currentScorecardName,
-        saveGameInput, setSaveGameInput, saveDate, setSaveDate,
+        saveGameInput, setSaveGameInput, saveLabel, setSaveLabel, venues,
+        saveDate, setSaveDate,
         loadGameSelect, setLoadGameSelect,
         cardMeta, setCardMeta,
         handleQuickSave, handleSaveAs, handleLoadSelectedGame,
