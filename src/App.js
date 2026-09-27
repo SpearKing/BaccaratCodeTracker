@@ -54,7 +54,7 @@ function App() {
     const cardNameForCard = cardNameRef.current;
     const {
         scorecard, lastWinType, lastWinRow, lastPlayedRow,
-        handleCellClick, resetScorecard, deleteRow, recordTie,
+        handleCellClick, resetScorecard, deleteRow, recordTie, recordTieAt,
         loadHands, restoredFromLocal, maxRenderableColumns,
     } = useScorecardLogic(handleDecision, getPrediction, cardNameForCard, testMode);
 
@@ -174,6 +174,7 @@ function App() {
                 />
                 <ScorecardGrid
                     scorecard={scorecard} handleCellClick={handleCellClick}
+                    recordTieAt={recordTieAt}
                     maxRenderableColumns={maxRenderableColumns}
                     highlightedCells={highlightedCells} showAnalytics={showAnalytics}
                     handleDeleteRow={deleteRow}

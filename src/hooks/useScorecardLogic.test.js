@@ -236,3 +236,68 @@ describe('decision logging', () => {
         logged.forEach((e) => expect(e.engine).toBeTruthy());
     });
 });
+
+describe('recordTieAt', () => {
+    it('records a tie on the row that was tapped', () => {
+        const { result } = setup();
+        play(result, ['P', 'B', 'B']);
+
+        act(() => { result.current.recordTieAt(4); });
+
+        expect(handsFromGrid(result.current.scorecard)).toEqual(['P', 'B', 'B', 'T']);
+        expect(result.current.lastWinRow).toBe(3);
+        expect(result.current.lastPlayedRow).toBe(4);
+    });
+
+    it('replaces a decided hand and moves the anchor back', () => {
+        // Tapping T on a row that already holds a result is a correction. The
+        // anchor pointed at that row, so it has to move -- leaving it would
+        // have the predictor reading a hand that no longer exists.
+        const { result } = setup();
+        play(result, ['P', 'B', 'B']);
+        expect(result.current.lastWinRow).toBe(3);
+
+        act(() => { result.current.recordTieAt(3); });
+
+        expect(handsFromGrid(result.current.scorecard)).toEqual(['P', 'B', 'T']);
+        expect(result.current.lastWinRow).toBe(2);
+        expect(result.current.lastWinType).toBe('B');
+    });
+
+    it('logs a forward tie but not a correction', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+        play(result, ['P', 'B']);
+        expect(logged).toHaveLength(2);
+
+        act(() => { result.current.recordTieAt(3); });   // forward play
+        expect(logged).toHaveLength(3);
+        expect(logged[2]).toMatchObject({ actual: 'T', hand: 3 });
+
+        act(() => { result.current.recordTieAt(2); });   // editing a past hand
+        expect(logged).toHaveLength(3);
+    });
+
+    it('ignores a row outside the grid', () => {
+        const { result } = setup();
+        play(result, ['P', 'B']);
+        const before = JSON.stringify(result.current.scorecard);
+        [0, -1, 99999].forEach((bad) => {
+            act(() => { result.current.recordTieAt(bad); });
+        });
+        expect(JSON.stringify(result.current.scorecard)).toBe(before);
+    });
+
+    it('gives the same board as the Tie button', () => {
+        const viaButton = setup();
+        play(viaButton.result, ['P', 'B', 'B']);
+        act(() => { viaButton.result.current.recordTie(); });
+
+        const viaCell = setup();
+        play(viaCell.result, ['P', 'B', 'B']);
+        act(() => { viaCell.result.current.recordTieAt(4); });
+
+        expect(JSON.stringify(viaCell.result.current.scorecard))
+            .toBe(JSON.stringify(viaButton.result.current.scorecard));
+    });
+});

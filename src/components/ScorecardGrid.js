@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import GridCell from './GridCell';
 
-const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highlightedCells, showAnalytics, handleDeleteRow }) => {
+const ScorecardGrid = ({ scorecard, handleCellClick, recordTieAt, maxRenderableColumns, highlightedCells, showAnalytics, handleDeleteRow }) => {
     const longPressTimeout = useRef(null);
     const [isLongPress, setIsLongPress] = useState(false);
 
@@ -34,9 +34,17 @@ const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highl
             {/* Header Row */}
             <div className="grid-row header-row">
                 <div className="grid-cell header header-pound sticky-col">#</div>
-                <div className="grid-cell header">P</div>
-                <div className="grid-cell header">B</div>
-                {/* S is always visible: it carries the tie marker. */}
+                {/* The header carries the same column classes as the cells
+                    below it. Without them the phone rule widened P and B in the
+                    body only, and every column drifted further out of line with
+                    its heading the further right you looked. */}
+                <div className="grid-cell header col-p">P</div>
+                <div className="grid-cell header col-b">B</div>
+                {/* T is a view onto the S cell, which is where a tie is actually
+                    stored. Rendering it as its own clickable column rather than
+                    adding a real column keeps the grid three-plus-N wide, so no
+                    saved card and no golden-master fixture has to change. */}
+                <div className="grid-cell header">T</div>
                 <div className="grid-cell header">S</div>
                 
                 {showAnalytics && Array.from({ length: maxRenderableColumns - 3 }).map((_, colIdx) => (
@@ -73,8 +81,7 @@ const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highl
                                 return null;
                             }
 
-
-                            return (
+                            const gridCell = (
                                 <GridCell
                                     key={`${rowIdx}-${colIdx}`}
                                     cell={cell}
@@ -90,6 +97,27 @@ const ScorecardGrid = ({ scorecard, handleCellClick, maxRenderableColumns, highl
                                     isLongPress={isLongPress}
                                     showAnalytics={showAnalytics}
                                 />
+                            );
+
+                            // The T cell sits before S and reads the same stored
+                            // cell, so a tie shows in one place and is recorded
+                            // by tapping the row rather than a separate button.
+                            if (!isS) return gridCell;
+                            return (
+                                <React.Fragment key={`${rowIdx}-tie`}>
+                                    <GridCell
+                                        cell={cell}
+                                        rowIdx={rowIdx}
+                                        colIdx={colIdx}
+                                        isT
+                                        isClickable
+                                        highlightedCells={highlightedCells}
+                                        handleCellClick={() => recordTieAt(rowIdx)}
+                                        isLongPress={isLongPress}
+                                        showAnalytics={showAnalytics}
+                                    />
+                                    {gridCell}
+                                </React.Fragment>
                             );
                         })}
                     </div>

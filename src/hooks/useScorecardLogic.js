@@ -1,7 +1,7 @@
 // src/hooks/useScorecardLogic.js
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { NUM_INITIAL_COLUMNS } from '../utils/constants';
-import { createInitialScorecard, calculateSingleRow, deriveGrid, handsFromGrid, TIE } from '../engine/grid';
+import { createInitialScorecard, calculateSingleRow, deriveGrid, handsFromGrid, isDecided, TIE } from '../engine/grid';
 import { makeEntry } from '../engine/decisionLog';
 import { stateFromHands } from '../engine/cardFormat';
 import { saveLocalCard, loadLocalCard } from './useLocalCard';
@@ -154,21 +154,47 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
     }, [scorecard]);
 
     /**
-     * Records a tie on the next free row.
+     * Records a tie on a specific row.
      *
      * A tie is not a result: it takes a row so hand numbers stay truthful, but
      * it leaves the running counts and the prediction anchor untouched.
+     *
+     * Clicking T on a row that already holds a Player or Banker win replaces it,
+     * which is an edit rather than a prediction -- so it is not logged, and the
+     * anchor has to be recomputed because the hand it pointed at may be the one
+     * that just became a tie.
      */
-    const recordTie = useCallback(() => {
+    const recordTieAt = useCallback((rowIdx) => {
+        if (rowIdx < 1 || rowIdx >= scorecard.length) return;
+
         const hands = handsFromGrid(scorecard);
-        const next = [...hands, TIE];
-        if (next.length >= scorecard.length) return;
+        const isForwardPlay = rowIdx === hands.length + 1;
+
+        const next = [...hands];
+        // Clicking below the last played row leaves the rows between as gaps,
+        // which deriveGrid skips -- the same thing clicking P or B there does.
+        while (next.length < rowIdx) next.push(null);
+        next[rowIdx - 1] = TIE;
+
         setScorecard(deriveGrid(next, scorecard.length - 1));
 
-        // A tie is still a decision point: the engine had an opinion and the
-        // hand pushed. Leaving it out would overstate coverage.
-        logDecision(next.length, TIE, next);
+        let newLastRow = -1;
+        for (let i = next.length - 1; i >= 0; i--) {
+            if (isDecided(next[i])) { newLastRow = i + 1; break; }
+        }
+        setLastWinRow(newLastRow);
+        setLastWinType(newLastRow === -1 ? null : next[newLastRow - 1]);
+
+        // A tie played forward is still a decision point: the engine had an
+        // opinion and the hand pushed. Leaving it out would overstate coverage.
+        if (isForwardPlay) logDecision(rowIdx, TIE, next);
     }, [scorecard, logDecision]);
 
-    return { scorecard, lastWinType, lastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow, recordTie, loadHands, restoredFromLocal, maxRenderableColumns };
+    /** The Tie button: a tie on the next free row. */
+    const recordTie = useCallback(
+        () => recordTieAt(handsFromGrid(scorecard).length + 1),
+        [recordTieAt, scorecard]
+    );
+
+    return { scorecard, lastWinType, lastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow, recordTie, recordTieAt, loadHands, restoredFromLocal, maxRenderableColumns };
 };
