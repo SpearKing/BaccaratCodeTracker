@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS predictions (
     schema_version INT         NOT NULL DEFAULT 1,
     engine_version TEXT        NOT NULL,
     card           TEXT,
+    -- Which shoe within the sitting. Hand numbers restart at each shoe, so
+    -- (card, shoe, hand_index) is what identifies a decision.
+    shoe           INT         NOT NULL DEFAULT 0,
     hand_index     INT         NOT NULL,
     predicted      TEXT,                  -- 'P' | 'B' | NULL when it had no opinion
     confidence     INT,
@@ -50,6 +53,7 @@ ALTER TABLE predictions ADD COLUMN IF NOT EXISTS candidates JSONB NOT NULL DEFAU
 ALTER TABLE predictions ADD COLUMN IF NOT EXISTS contested  BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE predictions ADD COLUMN IF NOT EXISTS mode       TEXT;
 ALTER TABLE predictions ADD COLUMN IF NOT EXISTS replayed   BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE predictions ADD COLUMN IF NOT EXISTS shoe       INT     NOT NULL DEFAULT 0;
 
 -- A card may be replayed, so the same (card, hand) can appear more than once.
 -- Reads take the most recent, which this index supports.
@@ -61,5 +65,8 @@ CREATE INDEX IF NOT EXISTS predictions_engine_idx
 
 -- The client retries unsynced entries, so the same entry can arrive twice.
 -- This makes a repeat delivery a no-op instead of a duplicate row.
-CREATE UNIQUE INDEX IF NOT EXISTS predictions_dedupe_idx
-    ON predictions (engine_version, card, hand_index, decided_at);
+-- Superseded by the shoe-aware index below; dropped so the old one cannot keep
+-- rejecting a legitimate second shoe as a duplicate.
+DROP INDEX IF EXISTS predictions_dedupe_idx;
+CREATE UNIQUE INDEX IF NOT EXISTS predictions_dedupe_shoe_idx
+    ON predictions (engine_version, card, shoe, hand_index, decided_at);

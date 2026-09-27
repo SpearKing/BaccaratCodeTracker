@@ -6,8 +6,25 @@ beforeEach(() => localStorage.clear());
 
 describe('the live card on this device', () => {
     it('round-trips the hands', () => {
+        // A flat run is stored as a one-shoe sitting.
         saveLocalCard(['P', 'B', 'T', 'P'], 'Tonight');
-        expect(loadLocalCard()).toEqual({ hands: ['P', 'B', 'T', 'P'], card: 'Tonight' });
+        expect(loadLocalCard()).toEqual({
+            shoes: [['P', 'B', 'T', 'P']], card: 'Tonight', activeShoe: 0,
+        });
+    });
+
+    it('round-trips several shoes and remembers which one was on screen', () => {
+        saveLocalCard([['P', 'B'], ['B', 'T', 'P'], ['P']], 'Tonight', false, 1);
+        expect(loadLocalCard()).toEqual({
+            shoes: [['P', 'B'], ['B', 'T', 'P'], ['P']], card: 'Tonight', activeShoe: 1,
+        });
+    });
+
+    it('clamps a stored shoe index that no longer exists', () => {
+        // Restoring to a shoe that is gone would put the next hand on the wrong
+        // board, so the index is pinned to what is actually there.
+        saveLocalCard([['P', 'B']], 'Tonight', false, 7);
+        expect(loadLocalCard().activeShoe).toBe(0);
     });
 
     it('stores hands, not a grid', () => {

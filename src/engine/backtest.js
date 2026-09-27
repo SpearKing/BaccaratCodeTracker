@@ -12,7 +12,7 @@
 // stepping the grid itself, so it cannot drift from what the app does.
 
 import { deriveGrid, isDecided } from './grid';
-import { fromStored } from './cardFormat';
+import { fromStored, shoesFrom } from './cardFormat';
 import { computeHighlights } from './analytics';
 import { predictNextHand } from './predict';
 import { makeEntry } from './decisionLog';
@@ -78,7 +78,18 @@ export const replaySavedCards = (games, { minHands = 1 } = {}) => {
     return { entries, perCard, records, pairs, summary: summarise(entries) };
 };
 
-/** Saved cards as ordered hand sequences, oldest card first. */
+/**
+ * Saved shoes as ordered hand sequences, oldest card first.
+ *
+ * One entry per SHOE, not per save. This is the whole point of storing shoes
+ * separately: every consumer here scores each entry as an independent sequence,
+ * resetting the rules' history between them, so a sitting recorded as several
+ * shoes can no longer produce a bet on a pattern spanning two of them.
+ *
+ * Saves made before shoes were recorded come back as a single entry, because
+ * that is what is known about them -- their internal boundaries were never
+ * written down and cannot be recovered.
+ */
 export const cardsInOrder = (games) => {
     const dateOf = (name) => {
         const m = String(name).match(/(\d{2})\/(\d{2})\/(\d{2})$/);
@@ -86,15 +97,21 @@ export const cardsInOrder = (games) => {
     };
 
     return Object.keys(games || {})
-        .map((name) => ({
-            name,
-            t: dateOf(name),
-            // fromStored reads both the current hands-only shape and the old
-            // full-grid saves, so the harness keeps working across the change.
-            hands: fromStored(games[name]).filter(isDecided),
-        }))
+        .flatMap((name) => {
+            const shoes = shoesFrom(games[name]);
+            return shoes.map((hands, i) => ({
+                // Named per shoe so the two never merge downstream, but a
+                // one-shoe card keeps its plain name -- which is what every
+                // existing card is, and what the reports already show.
+                name: shoes.length > 1 ? `${name} [shoe ${i + 1}]` : name,
+                card: name,
+                shoe: i,
+                t: dateOf(name),
+                hands: hands.filter(isDecided),
+            }));
+        })
         .filter((c) => c.hands.length > 0)
-        .sort((a, b) => a.t - b.t);
+        .sort((a, b) => a.t - b.t || a.shoe - b.shoe);
 };
 
 /**

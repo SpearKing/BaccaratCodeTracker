@@ -1,5 +1,5 @@
 // src/hooks/useScorecardLogic.js
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { NUM_INITIAL_COLUMNS } from '../utils/constants';
 import { createInitialScorecard, calculateSingleRow, deriveGrid, handsFromGrid, isDecided, TIE } from '../engine/grid';
 import { makeEntry } from '../engine/decisionLog';
@@ -24,7 +24,36 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
     const [scorecard, setScorecard] = useState(createInitialScorecard);
     const [lastWinType, setLastWinType] = useState(null);
     const [lastWinRow, setLastWinRow] = useState(-1);
-    const hasRestored = useRef(false);
+
+    // A sitting holds several shoes. The board shows one of them, and the
+    // ACTIVE shoe lives only in `scorecard` -- `shoes` holds the others and a
+    // stale copy of the active one. Keeping a second live copy of the hands on
+    // screen is how the grid and the log came to disagree once already, so
+    // `allShoes()` below is the single place the two are reconciled.
+    //
+    // This is also the boundary fix: the rules read transition history, and
+    // because the board only ever contains one shoe, they cannot see across a
+    // boundary. Before this, a long sitting was one continuous card and 6.3%
+    // of bets came from patterns straddling two unrelated shoes.
+    const [shoes, setShoes] = useState([[]]);
+    const [activeShoe, setActiveShoe] = useState(0);
+    /**
+     * Which mode's card the state currently reflects, or null before the
+     * device has been read.
+     *
+     * This is state rather than a ref on purpose. A ref set inside the restore
+     * effect flips to true SYNCHRONOUSLY, so the save effect on the same commit
+     * saw "restored" while the board was still blank and wrote an empty card
+     * over the stored one. Under StrictMode's double invocation the second pass
+     * then read that empty card back and found nothing to restore, so a reload
+     * lost the session. Batched with the restored data, the save effect cannot
+     * run until the board actually holds it.
+     *
+     * It also guards the mode switch: until the new mode's card has been read,
+     * nothing is written, so the live card can never be saved into the test
+     * slot or the other way round.
+     */
+    const [restoredMode, setRestoredMode] = useState(null);
     const [restoredFromLocal, setRestoredFromLocal] = useState(false);
 
     // Restore whatever this device was in the middle of. The old version read
@@ -32,7 +61,6 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
     // server, so it never fired and every reload came back to a blank card.
     useEffect(() => {
         const local = loadLocalCard(testMode);
-        hasRestored.current = true;
 
         if (!local) {
             // Nothing stored for this mode. On the first run that means the
@@ -42,14 +70,21 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
             setScorecard(createInitialScorecard());
             setLastWinType(null);
             setLastWinRow(-1);
+            setShoes([[]]);
+            setActiveShoe(0);
+            setRestoredMode(testMode);
             return;
         }
 
         setRestoredFromLocal(true);
-        const restored = stateFromHands(local.hands);
+        const index = Math.min(local.activeShoe ?? 0, local.shoes.length - 1);
+        setShoes(local.shoes);
+        setActiveShoe(index);
+        const restored = stateFromHands(local.shoes[index] || []);
         setScorecard(restored.scorecard);
         setLastWinType(restored.lastWinType);
         setLastWinRow(restored.lastWinRow);
+        setRestoredMode(testMode);
         // Re-runs when the mode changes, which is what swaps the board between
         // the live card and the test card.
     }, [testMode]);
@@ -64,10 +99,24 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
     // Written on every change rather than on a timer. The 1.5s debounce on the
     // old server autosave existed because that was a network call; this is a
     // few hundred bytes to localStorage.
+    /**
+     * Every shoe in the sitting, with the one on the board brought up to date.
+     *
+     * The active shoe is read off the grid rather than from `shoes`, so there
+     * is never a moment where the two could disagree about what was played.
+     */
+    const allShoes = useCallback(() => {
+        const out = shoes.slice();
+        out[activeShoe] = handsFromGrid(scorecard);
+        return out;
+    }, [shoes, activeShoe, scorecard]);
+
     useEffect(() => {
-        if (!hasRestored.current) return;   // don't overwrite a restore with the blank initial state
-        saveLocalCard(handsFromGrid(scorecard), cardName, testMode);
-    }, [scorecard, cardName, testMode]);
+        // Never overwrite a stored card with state that has not been restored
+        // into yet -- see the note on restoredMode above.
+        if (restoredMode !== testMode) return;
+        saveLocalCard(allShoes(), cardName, testMode, activeShoe);
+    }, [restoredMode, allShoes, cardName, testMode, activeShoe]);
 
 
     /**
@@ -84,9 +133,10 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
             prediction: getPrediction ? getPrediction() : null,
             actual,
             hands: handsAfter,
+            shoe: activeShoe,
             mode: testMode ? 'test' : undefined,
         }));
-    }, [onDecision, getPrediction, testMode]);
+    }, [onDecision, getPrediction, testMode, activeShoe]);
     
     const handleCellClick = useCallback((rowIdx, colIdx) => {
         if (rowIdx === 0) return;
@@ -114,15 +164,73 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
         }
     }, [scorecard, lastPlayedRow, logDecision]);
     
-    const resetScorecard = useCallback(() => { setScorecard(createInitialScorecard()); setLastWinType(null); setLastWinRow(-1); }, []);
+    const resetScorecard = useCallback(() => {
+        setScorecard(createInitialScorecard());
+        setLastWinType(null);
+        setLastWinRow(-1);
+        setShoes([[]]);
+        setActiveShoe(0);
+    }, []);
 
-    /** Replaces the board with a card's hands -- used by Load and the server fallback. */
-    const loadHands = useCallback((hands) => {
+    /** Puts one shoe's hands on the board. */
+    const showShoe = useCallback((hands) => {
         const restored = stateFromHands(hands || []);
         setScorecard(restored.scorecard);
         setLastWinType(restored.lastWinType);
         setLastWinRow(restored.lastWinRow);
     }, []);
+
+    /** Replaces the whole sitting -- used by Load and the server fallback. */
+    const loadShoes = useCallback((incoming) => {
+        const next = (incoming && incoming.length) ? incoming : [[]];
+        setShoes(next);
+        setActiveShoe(next.length - 1);   // resume on the shoe you were last in
+        showShoe(next[next.length - 1]);
+    }, [showShoe]);
+
+    /** Kept for callers that still hand over a single flat run. */
+    const loadHands = useCallback((hands) => loadShoes([hands || []]), [loadShoes]);
+
+    /** Switches the board to another shoe in this sitting. */
+    const selectShoe = useCallback((index) => {
+        if (index === activeShoe) return;
+        const committed = allShoes();
+        if (index < 0 || index >= committed.length) return;
+        setShoes(committed);
+        setActiveShoe(index);
+        showShoe(committed[index]);
+    }, [activeShoe, allShoes, showShoe]);
+
+    /**
+     * Starts a new shoe in the same sitting.
+     *
+     * The board clears, so the rules start again with no history -- which is
+     * the point. A new shoe shares nothing with the one before it.
+     */
+    const addShoe = useCallback(() => {
+        const committed = allShoes();
+        const next = [...committed, []];
+        setShoes(next);
+        setActiveShoe(next.length - 1);
+        showShoe([]);
+    }, [allShoes, showShoe]);
+
+    /** Removes a shoe from the sitting. The last one is emptied, not removed. */
+    const deleteShoe = useCallback((index) => {
+        const committed = allShoes();
+        if (index < 0 || index >= committed.length) return;
+        if (committed.length === 1) {
+            setShoes([[]]);
+            setActiveShoe(0);
+            showShoe([]);
+            return;
+        }
+        const next = committed.filter((_, i) => i !== index);
+        const moved = Math.min(activeShoe > index ? activeShoe - 1 : activeShoe, next.length - 1);
+        setShoes(next);
+        setActiveShoe(moved);
+        showShoe(next[moved]);
+    }, [allShoes, activeShoe, showShoe]);
 
     /**
      * Removes a hand and rebuilds the grid from the hands that remain.
@@ -196,5 +304,10 @@ export const useScorecardLogic = (onDecision, getPrediction, cardName, testMode 
         [recordTieAt, scorecard]
     );
 
-    return { scorecard, lastWinType, lastWinRow, lastPlayedRow, handleCellClick, resetScorecard, deleteRow, recordTie, recordTieAt, loadHands, restoredFromLocal, maxRenderableColumns };
+    return {
+        scorecard, lastWinType, lastWinRow, lastPlayedRow,
+        handleCellClick, resetScorecard, deleteRow, recordTie, recordTieAt,
+        loadHands, loadShoes, restoredFromLocal, maxRenderableColumns,
+        shoes, activeShoe, shoeCount: shoes.length, allShoes, selectShoe, addShoe, deleteShoe,
+    };
 };

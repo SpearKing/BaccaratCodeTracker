@@ -301,3 +301,78 @@ describe('recordTieAt', () => {
             .toBe(JSON.stringify(viaButton.result.current.scorecard));
     });
 });
+
+describe('shoes within a sitting', () => {
+    it('keeps each shoe separate and remembers which was on screen', () => {
+        const { result } = setup();
+        play(result, ['P', 'B', 'B']);
+
+        act(() => { result.current.addShoe(); });
+        expect(result.current.shoeCount).toBe(2);
+        expect(result.current.activeShoe).toBe(1);
+        // A new shoe shares nothing with the one before it -- which is the
+        // point, since the rules read transition history off the board.
+        expect(handsFromGrid(result.current.scorecard)).toEqual([]);
+
+        play(result, ['P', 'P']);
+        expect(result.current.allShoes()).toEqual([['P', 'B', 'B'], ['P', 'P']]);
+
+        act(() => { result.current.selectShoe(0); });
+        expect(handsFromGrid(result.current.scorecard)).toEqual(['P', 'B', 'B']);
+        // Switching back and forth must not lose the shoe you left.
+        expect(result.current.allShoes()).toEqual([['P', 'B', 'B'], ['P', 'P']]);
+    });
+
+    it('numbers hands from one within each shoe, and logs which shoe', () => {
+        const logged = [];
+        const { result } = setup((e) => logged.push(e));
+
+        play(result, ['P', 'B']);
+        act(() => { result.current.addShoe(); });
+        play(result, ['B']);
+
+        expect(logged.map((e) => [e.shoe, e.hand])).toEqual([[0, 1], [0, 2], [1, 1]]);
+    });
+
+    it('does not write a blank card over a stored one before restoring it', () => {
+        // The regression this guards: the save effect used to fire on mount
+        // with the restore flag already set but the board still empty, so it
+        // wrote an empty card over the stored one -- and StrictMode's second
+        // pass then read that back and found nothing to restore, losing the
+        // session on every reload.
+        localStorage.setItem('baccarat_live_card', JSON.stringify({
+            v: 2, shoes: ['PBB', 'PP'], card: 'Tonight', activeShoe: 1,
+        }));
+
+        const { result } = setup();
+
+        expect(result.current.shoeCount).toBe(2);
+        expect(result.current.activeShoe).toBe(1);
+        expect(handsFromGrid(result.current.scorecard)).toEqual(['P', 'P']);
+        expect(JSON.parse(localStorage.getItem('baccarat_live_card')).shoes)
+            .toEqual(['PBB', 'PP']);
+    });
+
+    it('empties the last shoe rather than leaving a sitting with none', () => {
+        const { result } = setup();
+        play(result, ['P', 'B']);
+        act(() => { result.current.deleteShoe(0); });
+        expect(result.current.shoeCount).toBe(1);
+        expect(handsFromGrid(result.current.scorecard)).toEqual([]);
+    });
+
+    it('moves the board off a removed shoe without losing the others', () => {
+        const { result } = setup();
+        play(result, ['P', 'B']);
+        act(() => { result.current.addShoe(); });
+        play(result, ['B', 'B']);
+        act(() => { result.current.addShoe(); });
+        play(result, ['P']);
+
+        act(() => { result.current.selectShoe(1); });
+        act(() => { result.current.deleteShoe(1); });
+
+        expect(result.current.allShoes()).toEqual([['P', 'B'], ['P']]);
+        expect(result.current.shoeCount).toBe(2);
+    });
+});

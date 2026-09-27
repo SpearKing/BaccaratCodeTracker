@@ -11,6 +11,7 @@ const ControlPanel = ({
     isDarkMode, setIsDarkMode,
     showAnalytics, setShowAnalytics,
     testMode, setTestMode,
+    activeShoe = 0, shoeCount = 1, selectShoe, addShoe, deleteShoe,
     currentScorecardName,
     saveGameInput, setSaveGameInput,
     saveDate, setSaveDate,
@@ -97,6 +98,46 @@ const ControlPanel = ({
                             : ' Your card is safe on this device but has never reached the server.'}
                     </div>
                 )}
+                {/* A sitting holds several shoes. Keeping them apart is not
+                    cosmetic: the rules read transition history, and a shoe
+                    recorded as a continuation of the last one lets them fire on
+                    patterns spanning two unrelated shoes. */}
+                <div className="shoe-bar">
+                    <span className="shoe-label">Shoe</span>
+                    <div className="shoe-chips">
+                        {Array.from({ length: shoeCount }).map((_, i) => (
+                            <button
+                                key={i}
+                                type="button"
+                                className={i === activeShoe ? 'shoe-chip active' : 'shoe-chip'}
+                                onClick={() => selectShoe && selectShoe(i)}
+                                title={`Shoe ${i + 1}`}
+                            >
+                                {i + 1}
+                            </button>
+                        ))}
+                        <button
+                            type="button" className="shoe-chip shoe-add"
+                            onClick={() => addShoe && addShoe()}
+                            title="Start a new shoe in this sitting"
+                        >
+                            +
+                        </button>
+                    </div>
+                    {shoeCount > 1 && (
+                        <button
+                            type="button" className="shoe-remove"
+                            onClick={() => {
+                                if (window.confirm(`Remove shoe ${activeShoe + 1}? Its hands are lost.`)) {
+                                    deleteShoe && deleteShoe(activeShoe);
+                                }
+                            }}
+                            title="Remove the shoe on screen"
+                        >
+                            &times;
+                        </button>
+                    )}
+                </div>
                 <div className="quick-save-container">
                     <button onClick={handleFullReset} className="reset-button">New</button>
                     <button onClick={handleQuickSave} className="quick-save-button">Save</button>

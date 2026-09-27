@@ -16,7 +16,6 @@ import SimModal from './components/SimModal';
 import { confidenceCalibration } from './engine/stats';
 import { recordsFrom, headToHeadFrom } from './engine/arbitrate';
 import { liveEntries, testEntries } from './engine/decisionLog';
-import { handsFromGrid } from './engine/grid';
 import { API_URL } from './utils/constants';
 
 function App() {
@@ -55,12 +54,9 @@ function App() {
     const {
         scorecard, lastWinType, lastWinRow, lastPlayedRow,
         handleCellClick, resetScorecard, deleteRow, recordTie, recordTieAt,
-        loadHands, restoredFromLocal, maxRenderableColumns,
+        loadShoes, restoredFromLocal, maxRenderableColumns,
+        activeShoe, shoeCount, allShoes, selectShoe, addShoe, deleteShoe,
     } = useScorecardLogic(handleDecision, getPrediction, cardNameForCard, testMode);
-
-    // The hands are what gets stored, locally and on the server. The board is
-    // rebuilt from them, so nothing else needs keeping.
-    const hands = useMemo(() => handsFromGrid(scorecard), [scorecard]);
 
     const { isDarkMode, setIsDarkMode } = useTheme();
     const { showAnalytics, setShowAnalytics, highlightedCells } = useAnalytics(scorecard, maxRenderableColumns);
@@ -77,8 +73,8 @@ function App() {
     }, [scorecard]);
 
     const gameManagement = useGameManagement({
-        hands,
-        loadHands,
+        shoes: allShoes(),
+        loadShoes,
         resetScorecard,
         restoredFromLocal,
         stats: tallies,
@@ -165,6 +161,8 @@ function App() {
                     isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode}
                     showAnalytics={showAnalytics} setShowAnalytics={setShowAnalytics}
                     testMode={testMode} setTestMode={setTestMode}
+                    activeShoe={activeShoe} shoeCount={shoeCount}
+                    selectShoe={selectShoe} addShoe={addShoe} deleteShoe={deleteShoe}
                     handleFullReset={handleFullReset}
                     recordTie={recordTie}
                     predictedWinType={predictedWinType} confidenceLevel={confidenceLevel}

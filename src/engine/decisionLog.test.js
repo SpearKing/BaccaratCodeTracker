@@ -130,7 +130,7 @@ describe('fromServerRow', () => {
 
     it('maps a row back into the shape the engine reads', () => {
         expect(fromServerRow(row)).toEqual({
-            v: 2, engine: 'arbitrated@2', card: 'Boomtown - 09/19/25', hand: 12,
+            v: 2, engine: 'arbitrated@2', card: 'Boomtown - 09/19/25', shoe: 0, hand: 12,
             predicted: 'B', confidence: 4, source: 'wiener-3', pattern: null,
             candidates: [{ id: 'wiener-3', call: 'B' }, { id: 'pattern', call: 'P' }],
             contested: true, actual: 'P', history: 'PBBPB',

@@ -14,13 +14,13 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { LAST_ACTIVE_SCORECARD_NAME_KEY, DEFAULT_GAME_NAME, API_URL } from '../utils/constants';
-import { toStored, fromStored } from '../engine/cardFormat';
+import { toStored, shoesFrom } from '../engine/cardFormat';
 import { metaFrom, metaPayload, EMPTY_META } from '../engine/cardMeta';
 
 const formatDate = (dateString) => { if (!dateString) return ''; const date = new Date(dateString); const offset = date.getTimezoneOffset(); const adjustedDate = new Date(date.getTime() + (offset * 60 * 1000)); const month = (adjustedDate.getMonth() + 1).toString().padStart(2, '0'); const day = adjustedDate.getDate().toString().padStart(2, '0'); const year = adjustedDate.getFullYear().toString().slice(-2); return `${month}/${day}/${year}`; };
 const toTitleCase = (str) => str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
 
-export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFromLocal, stats }) => {
+export const useGameManagement = ({ shoes, loadShoes, resetScorecard, restoredFromLocal, stats }) => {
     const [allSavedScorecards, setAllSavedScorecards] = useState({});
     const [currentScorecardName, setCurrentScorecardName] = useState(DEFAULT_GAME_NAME);
     const [saveGameInput, setSaveGameInput] = useState('');
@@ -44,7 +44,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
             const response = await fetch(`${API_URL}/games`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, data: toStored(hands, metaPayload(cardMeta)), stats: stats || {} }),
+                body: JSON.stringify({ name, data: toStored(shoes, metaPayload(cardMeta)), stats: stats || {} }),
             });
             if (!response.ok) throw new Error(`Server returned ${response.status}`);
             setSaveState({ status: 'saved', at: Date.now(), error: null });
@@ -54,7 +54,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
             setSaveState((prev) => ({ status: 'failed', at: prev.at, error: error.message }));
             return false;
         }
-    }, [hands, stats, cardMeta]);
+    }, [shoes, stats, cardMeta]);
 
     const loadAllGamesFromDB = useCallback(async () => {
         try {
@@ -74,23 +74,23 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         const last = allSavedScorecards[DEFAULT_GAME_NAME];
         if (!last) return;
         triedServerFallback.current = true;
-        const recovered = fromStored(last);
+        const recovered = shoesFrom(last);
         if (recovered.length > 0) {
-            loadHands(recovered);
+            loadShoes(recovered);
             setCardMeta(metaFrom(last));
             setCurrentScorecardName(DEFAULT_GAME_NAME);
         }
-    }, [allSavedScorecards, restoredFromLocal, loadHands]);
+    }, [allSavedScorecards, restoredFromLocal, loadShoes]);
 
     const handleQuickSave = useCallback(async () => {
         if (!currentScorecardName) return alert('No active game to save.');
         if (await save(currentScorecardName)) {
-            setAllSavedScorecards((prev) => ({ ...prev, [currentScorecardName]: toStored(hands, metaPayload(cardMeta)) }));
+            setAllSavedScorecards((prev) => ({ ...prev, [currentScorecardName]: toStored(shoes, metaPayload(cardMeta)) }));
             alert(`Game "${currentScorecardName}" saved successfully!`);
         } else {
             alert('Could not reach the server. The card is still safe on this device.');
         }
-    }, [currentScorecardName, save, hands, cardMeta]);
+    }, [currentScorecardName, save, shoes, cardMeta]);
 
     const handleSaveAs = useCallback(async () => {
         const nameToSave = saveGameInput.trim();
@@ -105,7 +105,7 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         while (existingNames.includes(finalName)) { counter++; finalName = `${processedBaseName} (${counter}) - ${formattedDate}`; }
 
         if (await save(finalName)) {
-            setAllSavedScorecards((prev) => ({ ...prev, [finalName]: toStored(hands, metaPayload(cardMeta)) }));
+            setAllSavedScorecards((prev) => ({ ...prev, [finalName]: toStored(shoes, metaPayload(cardMeta)) }));
             setCurrentScorecardName(finalName);
             setLoadGameSelect(finalName);
             localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, finalName);
@@ -114,21 +114,22 @@ export const useGameManagement = ({ hands, loadHands, resetScorecard, restoredFr
         } else {
             alert('Could not reach the server. The card is still safe on this device.');
         }
-    }, [saveGameInput, saveDate, allSavedScorecards, save, hands, cardMeta]);
+    }, [saveGameInput, saveDate, allSavedScorecards, save, shoes, cardMeta]);
 
     const handleLoadSelectedGame = useCallback(() => {
         if (!loadGameSelect || !allSavedScorecards[loadGameSelect]) {
             return alert('Please select a scorecard to load.');
         }
-        // fromStored reads both the current shape and the old full-grid saves.
-        loadHands(fromStored(allSavedScorecards[loadGameSelect]));
+        // shoesFrom reads v2 sittings, v1 single runs and the old full-grid
+        // saves alike; the last two come back as one-shoe cards.
+        loadShoes(shoesFrom(allSavedScorecards[loadGameSelect]));
         // Bring its classification up with it, so re-saving a card cannot
         // silently overwrite the type with whatever was last on screen.
         setCardMeta(metaFrom(allSavedScorecards[loadGameSelect]));
         setCurrentScorecardName(loadGameSelect);
         localStorage.setItem(LAST_ACTIVE_SCORECARD_NAME_KEY, loadGameSelect);
         alert(`Scorecard "${loadGameSelect}" loaded!`);
-    }, [loadGameSelect, allSavedScorecards, loadHands]);
+    }, [loadGameSelect, allSavedScorecards, loadShoes]);
 
     const handleDeleteSelectedGame = useCallback(async () => {
         if (!loadGameSelect || loadGameSelect === DEFAULT_GAME_NAME) {

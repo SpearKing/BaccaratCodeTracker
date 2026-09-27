@@ -94,9 +94,9 @@ export const useDecisionLog = (apiUrl) => {
      */
     const importDecisions = useCallback((incoming) => {
         setLog((prev) => {
-            const seen = new Set(prev.map((e) => `${e.engine}#${e.card}#${e.hand}`));
+            const seen = new Set(prev.map((e) => `${e.engine}#${e.card}#${e.shoe ?? 0}#${e.hand}`));
             const added = (incoming || []).filter((e) => {
-                const key = `${e.engine}#${e.card}#${e.hand}`;
+                const key = `${e.engine}#${e.card}#${e.shoe ?? 0}#${e.hand}`;
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
@@ -121,10 +121,10 @@ export const useDecisionLog = (apiUrl) => {
             });
             if (!response.ok) throw new Error(`Server returned ${response.status}`);
 
-            const syncedKeys = new Set(pending.map((e) => `${e.card}#${e.hand}#${e.at}`));
+            const syncedKeys = new Set(pending.map((e) => `${e.card}#${e.shoe ?? 0}#${e.hand}#${e.at}`));
             setLog((prev) =>
                 prev.map((e) =>
-                    syncedKeys.has(`${e.card}#${e.hand}#${e.at}`) ? { ...e, synced: true } : e
+                    syncedKeys.has(`${e.card}#${e.shoe ?? 0}#${e.hand}#${e.at}`) ? { ...e, synced: true } : e
                 )
             );
             setSyncError(null);

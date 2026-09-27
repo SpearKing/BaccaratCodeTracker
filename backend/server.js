@@ -86,10 +86,10 @@ app.post('/api/predictions', async (req, res) => {
 
   const query = `
     INSERT INTO predictions
-      (schema_version, engine_version, card, hand_index, predicted,
+      (schema_version, engine_version, card, shoe, hand_index, predicted,
        confidence, source, pattern, actual, history, decided_at,
        candidates, contested, mode, replayed)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
     ON CONFLICT DO NOTHING;
   `;
 
@@ -99,7 +99,7 @@ app.post('/api/predictions', async (req, res) => {
     let inserted = 0;
     for (const e of entries) {
       const result = await client.query(query, [
-        e.v ?? 1, e.engine, e.card ?? null, e.hand, e.predicted ?? null,
+        e.v ?? 1, e.engine, e.card ?? null, Number.isInteger(e.shoe) ? e.shoe : 0, e.hand, e.predicted ?? null,
         e.confidence ?? null, e.source ?? null, e.pattern ?? null,
         e.actual, e.history ?? null, e.at,
         JSON.stringify(e.candidates ?? []), e.contested ?? false,

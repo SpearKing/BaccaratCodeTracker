@@ -49,10 +49,15 @@ export const historyBefore = (hands, handIndex, length = HISTORY_LENGTH) => {
  * including the case where it had no opinion -- those are kept, because
  * coverage is part of what is being measured.
  */
-export const makeEntry = ({ card, handIndex, prediction, actual, hands, at, mode }) => ({
+export const makeEntry = ({ card, shoe, handIndex, prediction, actual, hands, at, mode }) => ({
     v: LOG_SCHEMA_VERSION,
     engine: ENGINE_VERSION,
     card: card || null,
+    // Which shoe within the sitting. Hand numbers restart at every shoe, so
+    // (card, shoe, hand) is what identifies a decision -- without the shoe,
+    // two hands from different shoes in the same sitting collide, and `dedupe`
+    // would discard one of them as a replay of the other.
+    shoe: Number.isInteger(shoe) ? shoe : 0,
     hand: handIndex,
     predicted: prediction?.prediction ?? null,
     confidence: prediction?.confidence ?? 0,
@@ -87,7 +92,10 @@ export const testEntries = (log) => (log || []).filter((e) => e.mode === 'test')
  */
 export const dedupe = (entries) => {
     const byKey = new Map();
-    entries.forEach((e) => byKey.set(`${e.card}#${e.hand}`, e));
+    // A missing shoe reads as 0, so entries recorded before sittings could hold
+    // more than one shoe key exactly as they did before -- and a replay of such
+    // a card still replaces them rather than doubling them up.
+    entries.forEach((e) => byKey.set(`${e.card}#${e.shoe ?? 0}#${e.hand}`, e));
     return [...byKey.values()];
 };
 
@@ -115,6 +123,7 @@ export const fromServerRow = (row) => ({
     v: row.schema_version ?? 1,
     engine: row.engine_version,
     card: row.card ?? null,
+    shoe: Number.isInteger(row.shoe) ? row.shoe : 0,
     hand: row.hand_index,
     predicted: row.predicted ?? null,
     confidence: row.confidence ?? 0,

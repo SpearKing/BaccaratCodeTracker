@@ -185,6 +185,14 @@ input:checked + .slider:before { transform: translateX(22px); }
 .prediction-rule { font-size: 0.8em; opacity: 0.8; }
 .stats-modal-content h3.stats-subhead { margin-top: 10px; font-size: 0.9em; opacity: 0.7; font-weight: normal; }
 
+.shoe-bar { display: flex; align-items: center; gap: 8px; width: 100%; padding: 2px 0 6px; flex-wrap: wrap; }
+.shoe-label { font-size: 0.8em; opacity: 0.7; }
+.shoe-chips { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+.shoe-chip { width: auto; min-width: 30px; padding: 4px 8px; font-size: 0.85em; border: 1px solid var(--border-color); border-radius: 13px; background-color: var(--grid-cell-bg); color: var(--text-color); cursor: pointer; }
+.shoe-chip.active { background-color: var(--button-load-bg); border-color: var(--button-load-bg); color: #fff; font-weight: bold; }
+.shoe-chip.shoe-add { border-style: dashed; opacity: 0.8; }
+.shoe-remove { width: auto; padding: 4px 9px; font-size: 0.9em; line-height: 1; border: 1px solid var(--button-delete-bg); border-radius: 5px; background: transparent; color: var(--button-delete-bg); cursor: pointer; }
+
 .card-meta-row { display: flex; gap: 8px; width: 100%; margin-top: 8px; flex-wrap: wrap; }
 .card-meta-row label { display: flex; flex-direction: column; gap: 3px; font-size: 0.75em; opacity: 0.8; flex: 1 1 110px; }
 .card-meta-row select, .card-meta-row input { padding: 7px; font-size: 0.9em; border: 1px solid var(--border-color); border-radius: 5px; background-color: var(--grid-cell-bg); color: var(--text-color); width: 100%; box-sizing: border-box; }
