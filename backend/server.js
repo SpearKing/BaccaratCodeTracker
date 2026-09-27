@@ -2,6 +2,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
 
 const app = express();
@@ -150,6 +152,32 @@ app.delete('/api/games/:name', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
-});
+/**
+ * Applies schema.sql before serving.
+ *
+ * It used to be applied by hand, which meant a deploy could ship code that
+ * wrote to a column the database did not have yet. That is exactly what
+ * happened when predictions gained a `shoe` column: the insert went live, the
+ * column did not, and every sync returned 500 until someone noticed. Every
+ * statement in schema.sql is idempotent -- CREATE IF NOT EXISTS, ADD COLUMN IF
+ * NOT EXISTS, DROP INDEX IF EXISTS -- so running it on every boot is safe and
+ * removes the manual step for good.
+ */
+const migrate = async () => {
+  const file = path.join(__dirname, 'schema.sql');
+  const sql = fs.readFileSync(file, 'utf8');
+  await pool.query(sql);
+};
+
+migrate()
+  .then(() => console.log('Schema is up to date.'))
+  .catch((err) => {
+    // Logged loudly rather than thrown: reads still work without the migration,
+    // and taking the whole API down would lose those too.
+    console.error('MIGRATION FAILED -- writes that need new columns will fail:', err);
+  })
+  .finally(() => {
+    app.listen(port, () => {
+      console.log(`Server listening at http://localhost:${port}`);
+    });
+  });
